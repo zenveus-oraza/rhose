@@ -1,0 +1,41 @@
+{
+  "name": "rhose",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rhose Learning Platform",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "lint:frontend": "npm run lint --workspace=frontend",
+    "lint:backend": "npm run lint --workspace=backend",
+    "typecheck": "npm run typecheck --workspace=frontend && npm run typecheck --workspace=backend",
+    "typecheck:frontend": "npm run typecheck --workspace=frontend",
+    "typecheck:backend": "npm run typecheck --workspace=backend",
+    "test": "npm run test --workspace=frontend && npm run test --workspace=backend",
+    "test:frontend": "npm run test --workspace=frontend",
+    "test:backend": "npm run test --workspace=backend",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:push": "npm run db:push --workspace=backend",
+    "db:studio": "npm run db:studio --workspace=backend",
+    "setup": "docker compose up -d && sleep 3 && npm run db:push"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
