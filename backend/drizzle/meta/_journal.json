@@ -8,6 +8,20 @@
       "when": 1780310203807,
       "tag": "0000_spotty_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780318738298,
+      "tag": "0001_clever_alex_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780320066901,
+      "tag": "0002_wide_forge",
+      "breakpoints": true
     }
   ]
 }

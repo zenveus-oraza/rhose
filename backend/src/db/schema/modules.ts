@@ -7,7 +7,7 @@ import { segments } from './segments';
  */
 export const modules = pgTable('modules', {
   id: uuid('id').primaryKey().defaultRandom(),
-  segmentId: uuid('segment_id').notNull().references(() => segments.id),
+  segmentId: uuid('segment_id').notNull().references(() => segments.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
   description: text('description'),
   sortOrder: integer('sort_order').notNull().default(0),

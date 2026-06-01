@@ -13,7 +13,7 @@ export const lessonContentTypeEnum = pgEnum('lesson_content_type', ['text', 'vid
  */
 export const lessons = pgTable('lessons', {
   id: uuid('id').primaryKey().defaultRandom(),
-  moduleId: uuid('module_id').notNull().references(() => modules.id),
+  moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
   contentType: lessonContentTypeEnum('content_type').notNull(),
   contentBody: text('content_body'),

@@ -8,3 +8,4 @@ export * from './password-reset-tokens';
 export * from './segments';
 export * from './modules';
 export * from './lessons';
+export * from './segment-assignments';

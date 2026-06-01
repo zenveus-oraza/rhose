@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
+import adminRouter from './routes/admin.routes.js';
 
 const app = express();
 const PORT = env.PORT;
@@ -21,6 +22,7 @@ app.get('/api/health', (_req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRouter);
 
 // --- Register routes above this line ---
 
