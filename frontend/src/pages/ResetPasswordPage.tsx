@@ -111,7 +111,7 @@ export function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <AuthLayout>
+      <AuthLayout heading="Password reset successful" subtext="Your password has been updated. You can now sign in with your new password.">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success-100">
             <svg
@@ -129,16 +129,9 @@ export function ResetPasswordPage() {
               />
             </svg>
           </div>
-          <h1 className="text-heading-section text-navy mb-2">
-            Password reset successful
-          </h1>
-          <p className="text-body text-muted-600 mb-8">
-            Your password has been updated. You can now sign in with your new
-            password.
-          </p>
           <Link
             to="/login"
-            className="inline-block rounded-md bg-navy px-6 py-2.5 text-body font-medium text-white hover:bg-navy-600 focus:outline-none focus:ring-2 focus:ring-navy focus:ring-offset-2 transition"
+            className="inline-block rounded-md bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition"
           >
             Back to login
           </Link>
@@ -148,13 +141,11 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout
+      heading="Reset your password"
+      subtext="Enter your new password below."
+    >
       <div>
-        <h1 className="text-heading-section text-navy mb-2">Reset your password</h1>
-        <p className="text-body text-muted-600 mb-8">
-          Enter your new password below.
-        </p>
-
         {error && (
           <div
             role="alert"
@@ -199,7 +190,7 @@ export function ResetPasswordPage() {
                   ? 'reset-new-password-error'
                   : 'password-strength'
               }
-              className={`w-full rounded-md border px-3 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+              className={`w-full rounded-md border px-3 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
                 fieldErrors.newPassword
                   ? 'border-danger-400 focus:ring-danger-400'
                   : 'border-muted-300'
@@ -263,7 +254,7 @@ export function ResetPasswordPage() {
                   ? 'reset-confirm-password-error'
                   : undefined
               }
-              className={`w-full rounded-md border px-3 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+              className={`w-full rounded-md border px-3 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
                 fieldErrors.confirmPassword
                   ? 'border-danger-400 focus:ring-danger-400'
                   : 'border-muted-300'
@@ -284,7 +275,7 @@ export function ResetPasswordPage() {
           <button
             type="submit"
             disabled={isLoading || !token}
-            className="w-full rounded-md bg-navy px-4 py-2.5 text-body font-medium text-white hover:bg-navy-600 focus:outline-none focus:ring-2 focus:ring-navy focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            className="w-full rounded-md bg-primary px-4 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
@@ -320,7 +311,7 @@ export function ResetPasswordPage() {
         <p className="mt-6 text-center">
           <Link
             to="/login"
-            className="text-helper font-medium text-teal-600 hover:text-teal-700 transition"
+            className="text-helper font-medium text-primary hover:text-primary/80 transition"
           >
             ← Back to login
           </Link>

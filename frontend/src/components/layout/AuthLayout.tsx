@@ -2,33 +2,56 @@ import type { ReactNode } from 'react';
 
 interface AuthLayoutProps {
   children: ReactNode;
+  /** Heading shown top-left of the left panel (e.g. "Welcome back") */
+  heading: string;
+  /** Subtext below the heading */
+  subtext: string;
+  /** Optional extra content in the left panel below heading (e.g. marketing text + avatars) */
+  leftExtra?: ReactNode;
 }
 
 /**
- * Shared auth layout with desktop split (teal visual panel + form)
- * and mobile single-column (form only).
+ * Auth layout:
+ * - Left panel: primary bg, heading+subtext top-left (96px bold, primary text on white? No — white text on primary bg)
+ *   Wait — you said "primary text color for these" but the bg is primary (#75D8D5).
+ *   White text on primary bg makes sense visually.
+ * - Right panel: form content + "Having trouble?" at bottom.
  */
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout({ children, heading, subtext, leftExtra }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-screen">
-      {/* Left teal visual panel — hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 items-center justify-center bg-gradient-to-br from-teal-600 to-teal-400 relative overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute top-10 left-10 w-64 h-64 rounded-full bg-white/10" />
-        <div className="absolute bottom-20 right-10 w-48 h-48 rounded-full bg-white/5" />
-        <div className="absolute top-1/2 left-1/3 w-32 h-32 rounded-full bg-white/10" />
-
-        <div className="relative z-10 text-center px-12">
-          <h1 className="text-heading-page text-white mb-4">Rhose</h1>
-          <p className="text-body text-white/90">
-            Your learning journey starts here
+    <div className="flex min-h-[calc(100vh-24px)] overflow-hidden bg-white">
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col bg-primary rounded-2xl border border-muted-200 py-10 px-8">
+        {/* Top-left: heading + subtext */}
+        <div>
+          <h1 className="text-[72px] font-bold leading-none opacity-90 mb-4">
+            {heading}
+          </h1>
+          <p className="text-body">
+            {subtext}
           </p>
         </div>
+
+        {/* Optional extra content (vertically centered or below) */}
+        {leftExtra && (
+          <div className='mt-32'>{leftExtra}</div>
+        )}
       </div>
 
-      {/* Right form panel — full width on mobile */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center px-6 py-12 bg-white">
-        <div className="w-full max-w-md">{children}</div>
+      {/* Right form panel */}
+      <div className="flex w-full lg:w-1/2 flex-col px-6 py-12 bg-white">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-md">{children}</div>
+        </div>
+        <p className="text-center text-helper text-muted-500">
+          Having trouble?{' '}
+          <a
+            href="mailto:admin@cmc-oral.com"
+            className="text-muted-500 underline"
+          >
+            Contact your admin
+          </a>
+        </p>
       </div>
     </div>
   );

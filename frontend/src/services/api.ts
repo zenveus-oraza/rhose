@@ -47,7 +47,6 @@ export async function apiClient<T>(
 
   if (response.status === 401) {
     clearStoredToken();
-    window.location.href = '/login';
     throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
   }
 

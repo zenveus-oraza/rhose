@@ -1,5 +1,5 @@
 {
-  "id": "f9338422-8091-488a-a834-3d2b992a2d9e",
+  "id": "3f46af4f-fedf-4093-b174-411a957e0445",
   "prevId": "6628b2a1-62ec-4ff1-a83d-890c53cd23dc",
   "version": "7",
   "dialect": "postgresql",
@@ -32,6 +32,12 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "profile_image": {
+          "name": "profile_image",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
         },
         "role": {
           "name": "role",

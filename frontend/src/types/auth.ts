@@ -5,6 +5,8 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  profileImage?: string | null;
+  createdAt?: string;
 }
 
 export interface LoginResponse {

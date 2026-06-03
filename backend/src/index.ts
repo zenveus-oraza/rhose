@@ -12,7 +12,7 @@ const FRONTEND_ORIGIN = env.FRONTEND_URL;
 
 // Middleware
 app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Health check
 app.get('/api/health', (_req, res) => {

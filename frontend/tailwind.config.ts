@@ -15,7 +15,13 @@ const config: Config = {
         'body': ['16px', { lineHeight: '1.5', fontWeight: '400' }],
         'helper': ['14px', { lineHeight: '1.5', fontWeight: '400' }],
       },
+      spacing: {
+        'global-padding': '12px',
+      },
       colors: {
+        primary: '#75D8D5',
+        secondary: '#75D8D5',
+        active: '#0F172A',
         navy: {
           DEFAULT: '#1B2559',
           50: '#F0F1F8',
@@ -30,12 +36,12 @@ const config: Config = {
           900: '#0B0F26',
         },
         teal: {
-          DEFAULT: '#4FD1C5',
+          DEFAULT: '#75D8D5',
           50: '#F0FDFB',
           100: '#CCFBF1',
           200: '#99F6E4',
           300: '#5EEAD4',
-          400: '#4FD1C5',
+          400: '#75D8D5',
           500: '#14B8A6',
           600: '#0D9488',
           700: '#0F766E',
