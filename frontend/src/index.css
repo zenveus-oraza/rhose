@@ -9,6 +9,6 @@
     @apply border-muted-200;
   }
   body {
-    @apply bg-muted-50 text-muted-800 font-sans antialiased;
+    @apply bg-white text-muted-800 font-sans antialiased;
   }
 }

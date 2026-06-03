@@ -62,7 +62,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <div className="p-[12px] min-h-screen bg-white">
+          <AppRoutes />
+        </div>
       </AuthProvider>
     </BrowserRouter>
   );

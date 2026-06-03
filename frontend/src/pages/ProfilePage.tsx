@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient, ApiError } from '@/services/api';
-import { LogOut } from 'lucide-react';
 
 interface ProfileData {
   name: string;
@@ -125,11 +124,11 @@ export function ProfilePage() {
 
       {/* Cover image area */}
       <div className="relative mb-16 rounded-xl overflow-hidden">
-        <div className="h-32 lg:h-44 bg-gradient-to-r from-navy-700 via-navy-500 to-teal-400" />
+        <div className="h-32 lg:h-44 bg-gradient-to-r from-primary via-primary to-primary/80" />
 
         {/* Avatar */}
         <div className="absolute -bottom-12 left-6">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-teal text-white text-heading-section shadow-md">
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-primary text-white text-heading-section shadow-md">
             {userInitials}
           </div>
         </div>
@@ -138,7 +137,7 @@ export function ProfilePage() {
       {/* Role badge */}
       <div className="mb-6 flex items-center gap-3">
         <span className="text-heading-card text-navy">{user?.name}</span>
-        <span className="inline-flex items-center rounded-full bg-teal-100 px-3 py-0.5 text-helper font-medium text-teal-700 capitalize">
+        <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-0.5 text-helper font-medium text-primary capitalize">
           {user?.role}
         </span>
       </div>
@@ -148,13 +147,13 @@ export function ProfilePage() {
         <Tabs.List className="flex w-full border-b border-muted-200 mb-6">
           <Tabs.Trigger
             value="profile"
-            className="flex-1 lg:flex-none px-6 py-3 text-body font-medium text-muted-500 border-b-2 border-transparent data-[state=active]:text-navy data-[state=active]:border-teal transition-colors"
+            className="flex-1 lg:flex-none px-6 py-3 text-body font-medium text-muted-500 border-b-2 border-transparent data-[state=active]:text-navy data-[state=active]:border-primary transition-colors"
           >
             Profile
           </Tabs.Trigger>
           <Tabs.Trigger
             value="password"
-            className="flex-1 lg:flex-none px-6 py-3 text-body font-medium text-muted-500 border-b-2 border-transparent data-[state=active]:text-navy data-[state=active]:border-teal transition-colors"
+            className="flex-1 lg:flex-none px-6 py-3 text-body font-medium text-muted-500 border-b-2 border-transparent data-[state=active]:text-navy data-[state=active]:border-primary transition-colors"
           >
             Password
           </Tabs.Trigger>
@@ -189,7 +188,7 @@ export function ProfilePage() {
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       required
                     />
                   ) : (
@@ -210,7 +209,7 @@ export function ProfilePage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       required
                     />
                   ) : (
@@ -245,7 +244,7 @@ export function ProfilePage() {
                     <button
                       type="submit"
                       disabled={profileLoading}
-                      className="rounded-lg bg-navy px-6 py-2.5 text-body font-medium text-white hover:bg-navy-600 disabled:opacity-50 transition-colors"
+                      className="rounded-lg bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
                     >
                       {profileLoading ? 'Saving...' : 'Save'}
                     </button>
@@ -254,7 +253,7 @@ export function ProfilePage() {
                   <button
                     type="button"
                     onClick={handleEditToggle}
-                    className="rounded-lg bg-navy px-6 py-2.5 text-body font-medium text-white hover:bg-navy-600 transition-colors"
+                    className="rounded-lg bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 transition-colors"
                   >
                     Edit
                   </button>
@@ -292,7 +291,7 @@ export function ProfilePage() {
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                    className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     required
                   />
                 </div>
@@ -313,7 +312,7 @@ export function ProfilePage() {
                     className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-1 ${
                       passwordErrors.newPassword
                         ? 'border-danger focus:border-danger focus:ring-danger'
-                        : 'border-muted-300 focus:border-teal focus:ring-teal'
+                        : 'border-muted-300 focus:border-primary focus:ring-primary'
                     }`}
                     required
                   />
@@ -338,7 +337,7 @@ export function ProfilePage() {
                     className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-1 ${
                       passwordErrors.confirmPassword
                         ? 'border-danger focus:border-danger focus:ring-danger'
-                        : 'border-muted-300 focus:border-teal focus:ring-teal'
+                        : 'border-muted-300 focus:border-primary focus:ring-primary'
                     }`}
                     required
                   />
@@ -352,7 +351,7 @@ export function ProfilePage() {
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className="rounded-lg bg-navy px-6 py-2.5 text-body font-medium text-white hover:bg-navy-600 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
                   {passwordLoading ? 'Changing...' : 'Change Password'}
                 </button>
@@ -368,7 +367,7 @@ export function ProfilePage() {
           onClick={logout}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-danger-200 bg-danger-50 px-6 py-3 text-body font-medium text-danger hover:bg-danger-100 transition-colors"
         >
-          <LogOut size={18} />
+          <img src="/icon/logout.png" alt="" className="h-5 w-5" />
           <span>Logout</span>
         </button>
       </div>
