@@ -51,7 +51,7 @@ export function ForgotPasswordPage() {
 
   if (isSubmitted) {
     return (
-      <AuthLayout>
+      <AuthLayout heading="Check your email" subtext="If an account exists with that email address, a password reset link has been sent.">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success-100">
             <svg
@@ -69,11 +69,6 @@ export function ForgotPasswordPage() {
               />
             </svg>
           </div>
-          <h1 className="text-heading-section text-navy mb-2">Check your email</h1>
-          <p className="text-body text-muted-600 mb-8">
-            If an account exists with that email address, a password reset link
-            has been sent.
-          </p>
           <Link
             to="/login"
             className="inline-block rounded-md bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition"
@@ -86,13 +81,11 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout
+      heading="Forgot password?"
+      subtext="Enter your email and we'll send you a link to reset your password."
+    >
       <div>
-        <h1 className="text-heading-section text-primary mb-2">Forgot password?</h1>
-        <p className="text-body text-muted-600 mb-8">
-          Enter your email and we&apos;ll send you a link to reset your password.
-        </p>
-
         {error && (
           <div
             role="alert"

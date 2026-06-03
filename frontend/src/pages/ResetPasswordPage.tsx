@@ -111,7 +111,7 @@ export function ResetPasswordPage() {
 
   if (isSuccess) {
     return (
-      <AuthLayout>
+      <AuthLayout heading="Password reset successful" subtext="Your password has been updated. You can now sign in with your new password.">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success-100">
             <svg
@@ -129,13 +129,6 @@ export function ResetPasswordPage() {
               />
             </svg>
           </div>
-          <h1 className="text-heading-section text-navy mb-2">
-            Password reset successful
-          </h1>
-          <p className="text-body text-muted-600 mb-8">
-            Your password has been updated. You can now sign in with your new
-            password.
-          </p>
           <Link
             to="/login"
             className="inline-block rounded-md bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition"
@@ -148,13 +141,11 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout
+      heading="Reset your password"
+      subtext="Enter your new password below."
+    >
       <div>
-        <h1 className="text-heading-section text-navy mb-2">Reset your password</h1>
-        <p className="text-body text-muted-600 mb-8">
-          Enter your new password below.
-        </p>
-
         {error && (
           <div
             role="alert"
