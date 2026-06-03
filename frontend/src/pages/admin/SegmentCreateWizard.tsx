@@ -57,9 +57,9 @@ export function SegmentCreateWizard() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-5">
         <button
           onClick={() => navigate('/admin/content')}
           className="mb-4 inline-flex items-center gap-1 text-helper text-muted-500 hover:text-navy transition"
@@ -67,8 +67,9 @@ export function SegmentCreateWizard() {
           <ArrowLeft size={16} />
           <span>Back to Content</span>
         </button>
-        <h1 className="text-heading-section text-navy">Create Segment</h1>
+        <h1 className="text-heading-page text-navy">Create Segment</h1>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       {/* Stepper */}
       <div className="mb-8">
@@ -112,7 +113,7 @@ export function SegmentCreateWizard() {
         {createSegment.error && (
           <ErrorMessage
             message={createSegment.error.message || 'Failed to create segment'}
-            className="mb-4"
+            className="mb-5"
           />
         )}
 
@@ -150,7 +151,7 @@ export function SegmentCreateWizard() {
         {currentStep < STEPS.length - 1 ? (
           <button
             onClick={handleNext}
-            className="inline-flex items-center gap-1 rounded-lg bg-navy px-4 py-2 text-helper font-medium text-white hover:bg-navy-600 transition"
+            className="inline-flex items-center gap-1 rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition"
           >
             <span>Next</span>
             <ArrowRight size={16} />
@@ -212,7 +213,7 @@ function SegmentInfoStep({
           onChange={(e) => onChange({ ...formData, title: e.target.value })}
           aria-invalid={!!fieldErrors.title}
           aria-describedby={fieldErrors.title ? 'segment-title-error' : undefined}
-          className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+          className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
             fieldErrors.title ? 'border-danger-400' : 'border-muted-300'
           }`}
           placeholder="Enter segment title"
@@ -233,7 +234,7 @@ function SegmentInfoStep({
           value={formData.description}
           onChange={(e) => onChange({ ...formData, description: e.target.value })}
           rows={4}
-          className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition resize-none"
+          className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition resize-none"
           placeholder="Enter a description for this segment (optional)"
         />
       </div>

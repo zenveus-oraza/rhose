@@ -42,7 +42,7 @@ export function SuccessModal({
             <div className="mt-6 flex flex-col gap-3 w-full max-w-xs">
               <button
                 onClick={onAction ?? (() => onOpenChange(false))}
-                className="w-full rounded-xl bg-navy px-6 py-3 text-body font-medium text-white hover:bg-navy-600 transition-colors"
+                className="w-full rounded-xl bg-secondary px-6 py-3 text-body font-medium text-white hover:bg-secondary/90 transition-colors"
               >
                 {actionLabel}
               </button>

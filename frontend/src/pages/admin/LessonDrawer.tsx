@@ -131,7 +131,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
               if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: undefined }));
             }}
             aria-invalid={!!fieldErrors.title}
-            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
               fieldErrors.title ? 'border-danger-400' : 'border-muted-300'
             }`}
             placeholder="Enter lesson title"
@@ -187,7 +187,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
               }}
               rows={6}
               aria-invalid={!!fieldErrors.contentBody}
-              className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition resize-none ${
+              className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition resize-none ${
                 fieldErrors.contentBody ? 'border-danger-400' : 'border-muted-300'
               }`}
               placeholder="Enter the lesson content"
@@ -212,7 +212,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
                 if (fieldErrors.videoUrl) setFieldErrors((prev) => ({ ...prev, videoUrl: undefined }));
               }}
               aria-invalid={!!fieldErrors.videoUrl}
-              className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+              className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
                 fieldErrors.videoUrl ? 'border-danger-400' : 'border-muted-300'
               }`}
               placeholder="https://example.com/video"
@@ -236,7 +236,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-navy px-4 py-2 text-helper font-medium text-white hover:bg-navy-600 transition disabled:opacity-60"
+            className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
           >
             {isPending ? 'Saving...' : isEditing ? 'Update Lesson' : 'Add Lesson'}
           </button>

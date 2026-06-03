@@ -76,16 +76,19 @@ export function SegmentEditPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8">
-      <button
-        onClick={() => navigate(`/admin/content/segments/${id}`)}
-        className="mb-4 inline-flex items-center gap-1 text-helper text-muted-500 hover:text-navy transition"
-      >
-        <ArrowLeft size={16} />
-        <span>Back to Segment</span>
-      </button>
+    <div className="py-4 lg:px-8">
+      <div className="mb-5">
+        <button
+          onClick={() => navigate(`/admin/content/segments/${id}`)}
+          className="mb-4 inline-flex items-center gap-1 text-helper text-muted-500 hover:text-navy transition"
+        >
+          <ArrowLeft size={16} />
+          <span>Back to Segment</span>
+        </button>
 
-      <h1 className="text-heading-section text-navy mb-6">Edit Segment</h1>
+        <h1 className="text-heading-page text-navy">Edit Segment</h1>
+      </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       <form onSubmit={handleSubmit} className="max-w-lg space-y-5">
         {updateSegment.error && (
@@ -105,7 +108,7 @@ export function SegmentEditPage() {
               if (fieldErrors.title) setFieldErrors({});
             }}
             aria-invalid={!!fieldErrors.title}
-            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
               fieldErrors.title ? 'border-danger-400' : 'border-muted-300'
             }`}
           />
@@ -123,7 +126,7 @@ export function SegmentEditPage() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition resize-none"
+            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition resize-none"
           />
         </div>
 
@@ -135,7 +138,7 @@ export function SegmentEditPage() {
             id="edit-status"
             value={status}
             onChange={(e) => setStatus(e.target.value as SegmentStatus)}
-            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition"
+            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
           >
             {statusOptions.map((opt) => (
               <option key={opt.value} value={opt.value} disabled={opt.disabled}>
@@ -161,7 +164,7 @@ export function SegmentEditPage() {
           <button
             type="submit"
             disabled={updateSegment.isPending}
-            className="rounded-lg bg-navy px-4 py-2 text-helper font-medium text-white hover:bg-navy-600 transition disabled:opacity-60"
+            className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
           >
             {updateSegment.isPending ? 'Saving...' : 'Save Changes'}
           </button>

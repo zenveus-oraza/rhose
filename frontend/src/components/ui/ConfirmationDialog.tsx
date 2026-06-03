@@ -72,7 +72,7 @@ export function ConfirmationDialog({
             className={`rounded-lg px-4 py-2 text-helper font-medium text-white transition disabled:opacity-60 disabled:cursor-not-allowed ${
               variant === 'danger'
                 ? 'bg-danger hover:bg-danger-600'
-                : 'bg-navy hover:bg-navy-600'
+                : 'bg-primary hover:bg-secondary/90'
             }`}
           >
             {isLoading ? 'Processing...' : confirmLabel}

@@ -39,7 +39,7 @@ export function LearnerLayout() {
         `}
       >
         {/* Sidebar header — logo centered */}
-        <div className="flex items-center justify-center px-4 py-4 relative">
+        <div className="flex items-center justify-center px-4 py-4 pb-6 relative">
           <img
             src="/images/cmc_oral_logo.png"
             alt="CMC Oral Logo"
@@ -68,7 +68,7 @@ export function LearnerLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2.5 text-body transition-colors ${
                   isActive
-                    ? 'bg-primary text-white font-medium'
+                    ? 'bg-secondary text-white font-medium'
                     : 'text-muted-600 hover:bg-muted-100 hover:text-navy'
                 }`
               }

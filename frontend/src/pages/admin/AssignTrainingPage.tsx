@@ -91,9 +91,9 @@ export function AssignTrainingPage() {
   const activeSegments = segments?.filter((s) => s.status === 'active') ?? [];
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="mb-5 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
           className="rounded-lg p-2 text-muted-500 hover:bg-muted-100 hover:text-navy transition-colors"
@@ -103,11 +103,9 @@ export function AssignTrainingPage() {
         </button>
         <div>
           <h1 className="text-heading-page text-navy">Assign Training</h1>
-          <p className="mt-1 text-body text-muted-500">
-            Assign users to a learning segment.
-          </p>
         </div>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         {/* Left: Segment Selection & User List */}
@@ -126,7 +124,7 @@ export function AssignTrainingPage() {
               <select
                 value={selectedSegmentId}
                 onChange={(e) => setSelectedSegmentId(e.target.value)}
-                className="mt-3 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                className="mt-3 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               >
                 <option value="">Select a segment...</option>
                 {activeSegments.map((segment) => (
@@ -162,7 +160,7 @@ export function AssignTrainingPage() {
                 placeholder="Search users..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full rounded-xl border border-muted-200 bg-white py-2.5 pl-9 pr-4 text-helper text-muted-800 placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                className="w-full rounded-xl border border-muted-200 bg-white py-2.5 pl-9 pr-4 text-helper text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               />
             </div>
 
@@ -188,9 +186,9 @@ export function AssignTrainingPage() {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleUser(user)}
-                        className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-teal"
+                        className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-primary"
                       />
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-teal-700 text-helper font-medium">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-primary text-helper font-medium">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -225,7 +223,7 @@ export function AssignTrainingPage() {
                   value={durationDays}
                   onChange={(e) => setDurationDays(e.target.value)}
                   placeholder="e.g. 30"
-                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
               <div>
@@ -237,7 +235,7 @@ export function AssignTrainingPage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
                 />
               </div>
             </div>
@@ -259,7 +257,7 @@ export function AssignTrainingPage() {
                     className="flex items-center justify-between rounded-lg bg-muted-50 px-3 py-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-700 text-xs font-medium">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-primary text-xs font-medium">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                       <span className="text-helper font-medium text-navy truncate">
@@ -317,7 +315,7 @@ export function AssignTrainingPage() {
           <button
             onClick={handleAssign}
             disabled={!selectedSegmentId || selectedUsers.length === 0 || isAssigning}
-            className="w-full rounded-xl bg-navy px-5 py-3 text-body font-medium text-white hover:bg-navy-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full rounded-xl bg-secondary px-5 py-3 text-body font-medium text-white hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isAssigning ? (
               <span className="flex items-center justify-center gap-2">

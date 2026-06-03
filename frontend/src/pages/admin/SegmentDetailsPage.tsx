@@ -87,9 +87,9 @@ export function SegmentDetailsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-5">
         <button
           onClick={() => navigate('/admin/content')}
           className="mb-4 inline-flex items-center gap-1 text-helper text-muted-500 hover:text-navy transition"
@@ -101,12 +101,9 @@ export function SegmentDetailsPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-heading-section text-navy">{segment.title}</h1>
+              <h1 className="text-heading-page text-navy">{segment.title}</h1>
               <StatusBadge variant={segment.status} />
             </div>
-            {segment.description && (
-              <p className="text-body text-muted-600 mt-1">{segment.description}</p>
-            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -137,6 +134,7 @@ export function SegmentDetailsPage() {
           </div>
         </div>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       {/* Summary Cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -186,7 +184,7 @@ export function SegmentDetailsPage() {
               setEditingModule(null);
               setModuleDrawerOpen(true);
             }}
-            className="inline-flex items-center gap-1 rounded-lg bg-navy px-3 py-1.5 text-helper font-medium text-white hover:bg-navy-600 transition"
+            className="inline-flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
           >
             <Plus size={16} />
             <span>Add Module</span>
@@ -412,7 +410,7 @@ function ModuleLessons({
         <p className="text-helper text-muted-500">No lessons yet.</p>
         <button
           onClick={onAddLesson}
-          className="mt-2 text-helper font-medium text-teal-600 hover:text-teal-700 transition"
+          className="mt-2 text-helper font-medium text-primary hover:text-primary/80 transition"
         >
           + Add first lesson
         </button>

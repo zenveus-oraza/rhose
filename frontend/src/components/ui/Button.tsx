@@ -20,10 +20,10 @@ export function Button({
     'rounded-md px-4 py-2.5 text-body font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-primary text-white hover:bg-primary/90 focus:ring-primary',
+    primary: 'bg-secondary text-white hover:bg-secondary/90 focus:ring-secondary',
     secondary: 'bg-secondary text-white hover:bg-secondary/90 focus:ring-secondary',
     outline:
-      'border border-muted-300 text-muted-600 hover:bg-muted-50 focus:ring-primary',
+      'border border-muted-300 text-muted-600 hover:bg-muted-50 focus:ring-secondary',
   };
 
   return (

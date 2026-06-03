@@ -42,7 +42,7 @@ export function SuccessModal({
 
         <button
           onClick={onAction ?? onClose}
-          className="rounded-lg bg-navy px-6 py-2.5 text-body font-medium text-white hover:bg-navy-600 transition"
+          className="rounded-lg bg-secondary px-6 py-2.5 text-body font-medium text-white hover:bg-secondary/90 transition"
         >
           {actionLabel}
         </button>

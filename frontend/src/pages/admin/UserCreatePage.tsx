@@ -88,9 +88,9 @@ export function UserCreatePage() {
   };
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="mb-5 flex items-center gap-3">
         <button
           onClick={() => navigate('/admin/users')}
           className="rounded-lg p-2 text-muted-500 hover:bg-muted-100 hover:text-navy transition-colors"
@@ -100,11 +100,9 @@ export function UserCreatePage() {
         </button>
         <div>
           <h1 className="text-heading-page text-navy">Create User</h1>
-          <p className="mt-1 text-body text-muted-500">
-            Add a new user to the platform.
-          </p>
         </div>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="mt-8 max-w-2xl space-y-8">
@@ -125,7 +123,7 @@ export function UserCreatePage() {
                 className={`mt-1.5 w-full rounded-xl border bg-white px-4 py-2.5 text-body text-muted-800 placeholder:text-muted-400 focus:outline-none focus:ring-1 transition-colors ${
                   formErrors.name
                     ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500'
-                    : 'border-muted-200 focus:border-teal focus:ring-teal'
+                    : 'border-muted-200 focus:border-primary focus:ring-primary'
                 }`}
                 placeholder="Enter full name"
               />
@@ -147,7 +145,7 @@ export function UserCreatePage() {
                 className={`mt-1.5 w-full rounded-xl border bg-white px-4 py-2.5 text-body text-muted-800 placeholder:text-muted-400 focus:outline-none focus:ring-1 transition-colors ${
                   formErrors.email
                     ? 'border-danger-500 focus:border-danger-500 focus:ring-danger-500'
-                    : 'border-muted-200 focus:border-teal focus:ring-teal'
+                    : 'border-muted-200 focus:border-primary focus:ring-primary'
                 }`}
                 placeholder="Enter email address"
               />
@@ -165,7 +163,7 @@ export function UserCreatePage() {
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
-                className="mt-1.5 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                className="mt-1.5 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               >
                 {ROLE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -184,7 +182,7 @@ export function UserCreatePage() {
                 id="jobTitle"
                 value={jobTitle}
                 onChange={(e) => setJobTitle(e.target.value)}
-                className="mt-1.5 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+                className="mt-1.5 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               >
                 <option value="">Select job title</option>
                 {JOB_TITLE_OPTIONS.map((title) => (
@@ -216,7 +214,7 @@ export function UserCreatePage() {
                       type="checkbox"
                       checked={selectedSegments.includes(segment.id)}
                       onChange={() => toggleSegment(segment.id)}
-                      className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-teal"
+                      className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-primary"
                     />
                     <div className="flex-1">
                       <p className="text-body font-medium text-navy">{segment.title}</p>
@@ -253,7 +251,7 @@ export function UserCreatePage() {
           <button
             type="submit"
             disabled={createUserMutation.isPending}
-            className="rounded-xl bg-navy px-5 py-2.5 text-body font-medium text-white hover:bg-navy-600 disabled:opacity-50 transition-colors"
+            className="rounded-xl bg-secondary px-5 py-2.5 text-body font-medium text-white hover:bg-secondary/90 disabled:opacity-50 transition-colors"
           >
             {createUserMutation.isPending ? (
               <span className="flex items-center gap-2">

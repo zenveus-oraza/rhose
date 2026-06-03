@@ -75,16 +75,16 @@ export function UserProfilePage() {
 
   if (!user) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="py-4 lg:px-8">
         <ErrorMessage message="User not found." />
       </div>
     );
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="mb-5 flex items-center gap-3">
         <button
           onClick={() => navigate('/admin/users')}
           className="rounded-lg p-2 text-muted-500 hover:bg-muted-100 hover:text-navy transition-colors"
@@ -94,18 +94,16 @@ export function UserProfilePage() {
         </button>
         <div className="flex-1">
           <h1 className="text-heading-page text-navy">User Profile</h1>
-          <p className="mt-1 text-body text-muted-500">
-            View and manage user details.
-          </p>
         </div>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         {/* User Details Card */}
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-xl border border-muted-200 bg-white p-6">
             <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-50 text-teal-700 text-heading-card font-bold">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-50 text-primary text-heading-card font-bold">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1">

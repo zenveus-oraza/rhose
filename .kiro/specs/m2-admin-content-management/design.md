@@ -34,33 +34,44 @@ Relevant screenshot assets:
 M2 covers admin dashboard, content management, user management, and segment assignment.
 
 **Admin dashboard:**
-- Use left sidebar with active teal item and bottom Settings/Log out.
-- Header includes greeting, Dashboard title, profile dropdown.
-- Quick actions: Assign Segment, Create User, Add New Segment.
+- Use existing `AdminLayout.tsx` which renders the sidebar with active `bg-primary text-white` state and bottom Settings/Logout.
+- Header includes greeting, Dashboard title.
+- Quick actions: Assign Segment, Create User, Add New Segment — use `<Button>` component.
 - Stats cards: Total Users, Active Segment, Total Modules, Total Lessons.
 - Segment Overview list uses status badges, progress bars, filter/status dropdown.
+- Use icons from `public/icon/`: `dashboard.png`, `group_add.png`, `assignment_add.png`, `add.png`, `filter_list.png`.
 - Recent Activity panel is a lightweight UI pattern only; do not turn it into advanced analytics.
 
 **Content management:**
 - Use table/list view with row action menu.
+- Use icons: `content_mang.png`, `folder_open.png`, `layers.png`, `edit.png`, `add.png`, `close.png`.
 - Create Segment uses a stepper/wizard with segment info, modules, lessons, quiz/questions, and review/details.
 - Add Module, Add Lesson, and Add Question use right-side drawer/panel patterns.
 - Segment Details summarizes info, modules/lessons/quiz, assigned users, and progress.
 
 **User management:**
-- User list has search, filter dropdown, columns for role/job title, assigned segment, progress, status, and actions.
+- User list has search (`search.png` icon), filter dropdown (`filter_list.png`), columns for role/job title, assigned segment, progress, status, and actions.
 - Row actions: View Profile, Assign Segment, Reset Password, Deactivate User.
+- Use icons: `profile.png`, `group_add.png`, `edit.png`.
 - Create User form includes user info, role/job-title dropdown, segment assignment, invite email action, and success modal.
 - User Profile admin view includes user details, segment assignment, progress, activity log, quick actions, and account details.
 
 **Assign Training:**
 - Includes segment selector, selectable users list, selected users panel, notification toggle, duration/date fields, and success modal.
+- Use icons: `assignment_add.png`, `check_box_fill.png`, `checkbox_Empty.png`, `calendar_clock.png`.
 
 ### UI Implementation Instructions To Kiro
 
-- Keep the UI consistent with `.kiro/steering/ui-style-guide.md`, `.kiro/steering/design-system.md`, `.kiro/context/screenshot-catalog.md`, `STYLE.png`, and `OVERLAY.png`.
-- Use shadcn/ui primitives where they match the screenshots, but centralize variants in shared components instead of scattering one-off Tailwind classes.
-- Preserve the screenshot visual system: Inter typography, teal active states, navy primary actions, white cards, light borders, subtle shadows, rounded corners, status badges, and responsive 4-column/mobile and 12-column/desktop grids.
+- Keep the UI consistent with `.kiro/steering/design-clarifications.md`, `.kiro/context/screenshot-catalog.md`, `STYLE.png`, and `OVERLAY.png`.
+- Use shadcn/ui primitives where they match the screenshots, but centralize variants in shared components (e.g., `Button.tsx`) instead of scattering one-off Tailwind classes.
+- **Global 12px padding** is applied at the App root level (`p-[12px]`). All layout content sits within this inset.
+- **Sidebar styling**: `bg-[#F8FAFC]`, `rounded-2xl`, `border border-muted-200`. Logo centered in header. Dividers use `mx-4 border-b border-muted-200` (shorter on each side). Active nav items use `bg-primary text-white font-medium`.
+- **Button colors**: Primary buttons use `bg-primary` (#75D8D5) with white text. Active/selected states use `bg-active` (#0F172A).
+- **Icons**: Use real PNG icons from `public/icon/` folder (e.g., `logout.png`, `settings.png`, `content_mang.png`, `dashboard.png`, `search.png`, `filter_list.png`, `add.png`, `edit.png`, `close.png`, `check_circle.png`, `folder_open.png`, `layers.png`, `group_add.png`, `assignment_add.png`).
+- **Error handling**: Use toast notifications (via `useToast()`) for API errors. Do not use inline flickering error divs.
+- **Reusable Button component**: `src/components/ui/Button.tsx` — use `<Button variant="primary">` for actions.
+- **Nav footer**: Admin has Settings + Logout (no user name). Learner has Logout only.
+- **Project name**: Internal reference is `cmc-oral`, not "Rhose".
 - Do not invent missing flows. If the SOW requires something not shown in screenshots, implement safe structure and mark the missing UI state as a gap.
 - Treat screenshots as UI/UX references, not automatic scope additions.
 
@@ -139,10 +150,16 @@ Request flow: `Client → Auth Middleware → Admin Guard → Controller → Ser
 ### Frontend Design Rules
 
 - Use shared service/API client hooks for data access.
-- Use reusable layout shells for admin and learner areas.
-- Use shared components for Button, FormField, Select/Dropdown, StatusBadge, Card, ActionMenu, SuccessModal, Sidebar, ProgressBar, and SegmentAccordion.
-- Keep loading, empty, disabled, and error states visually consistent with the screenshot catalog.
+- Use the existing `AdminLayout.tsx` shell — do NOT create a separate AdminSidebar component.
+- Use the reusable `<Button>` component (`src/components/ui/Button.tsx`) for all action buttons.
+- Use toast notifications (`useToast()` from `src/components/ui/Toast.tsx`) for API success/error feedback.
+- Use real PNG icons from `public/icon/` instead of lucide-react where matching icons exist.
+- Active nav items: `bg-primary text-white font-medium`. Inactive: `text-muted-600 hover:bg-muted-100`.
+- Sidebar: `bg-[#F8FAFC]`, `rounded-2xl`, `border border-muted-200`. Dividers: `mx-4 border-b border-muted-200`.
+- Keep loading, empty, disabled, and error states visually consistent.
 - Mobile screens must be intentionally designed as stacked cards/drawers, not compressed desktop tables.
+- All destructive actions show a confirmation dialog before execution.
+- Status badges use: draft → muted, active → success/primary, archived → warning.
 
 ## Components and Interfaces
 
@@ -230,16 +247,15 @@ interface AssignmentService {
 ### Frontend Components
 
 **Layout:**
-- `AdminLayout` — sidebar + main content area with responsive behavior
-- `AdminSidebar` — navigation with active teal state, Settings/Log out at bottom
+- `AdminLayout` — existing component with sidebar (bg-[#F8FAFC], rounded-2xl, border), logo, nav with active primary state, Settings + Logout footer. Already implements responsive behavior with mobile overlay.
 
 **Dashboard:**
 - `DashboardPage` — stats cards, quick actions, segment overview, recent activity
-- `StatsCard` — reusable stat display (icon, label, count)
+- `StatsCard` — reusable stat display (icon from `public/icon/`, label, count)
 - `SegmentOverviewList` — segment rows with status badges and progress bars
 
 **Content Management:**
-- `SegmentListPage` — table/list with row actions
+- `SegmentListPage` — table/list with row actions (uses `ActionMenu`)
 - `SegmentCreateWizard` — stepper form (Segment Info → Modules → Lessons → Quiz → Review)
 - `ModuleDrawer` — right-side panel for add/edit module
 - `LessonDrawer` — right-side panel for add/edit lesson
@@ -253,20 +269,22 @@ interface AssignmentService {
 **Assignment:**
 - `AssignTrainingPage` — segment selector, user checklist, duration fields, success modal
 
-**Shared:**
+**Shared (already built in M1, reuse):**
+- `Button` — `src/components/ui/Button.tsx` (primary/secondary/outline variants)
+- `Toast` — `src/components/ui/Toast.tsx` (success/error/info notifications)
+- `ProfileImageUpload` — `src/components/ui/ProfileImageUpload.tsx` (drag & drop image dialog)
 - `ConfirmationDialog` — destructive action confirmation (overlay styling)
 - `SuccessModal` — centered green check, title, action button
 - `ActionMenu` — row-level dropdown actions
 - `StatusBadge` — draft/active/archived/deactivated badges
-- `LoadingIndicator` — consistent loading state
-- `ErrorMessage` — user-visible error display
+- `LoadingIndicator` — consistent loading state (spinner)
 
 ## Data Models
 
 ### Existing Tables (from M1, extended as needed)
 
 ```typescript
-// users table — extended with job_title metadata
+// users table — extended with job_title and profile_image metadata
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
@@ -274,6 +292,7 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   role: varchar('role', { length: 20 }).notNull().default('learner'), // 'admin' | 'learner'
   jobTitle: varchar('job_title', { length: 255 }),
+  profileImage: text('profile_image'), // base64 or URL, unlimited length
   status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'deactivated'
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -459,11 +478,13 @@ interface ApiErrorResponse {
 
 ### Frontend Error Display
 
-- API errors are displayed as user-visible toast notifications or inline form errors.
+- API errors are displayed as **toast notifications** via `useToast()` hook (bottom-right, auto-dismiss after 4s).
+- Toast types: `success` (green), `error` (red), `info` (neutral).
 - Technical details (stack traces, internal codes) are never shown to the user.
-- Loading states use consistent spinner/skeleton patterns from the design system.
+- Loading states use consistent spinner patterns.
 - Destructive actions (delete, deactivate, archive) always show a confirmation dialog before execution.
-- Network errors display a generic "Connection error, please try again" message.
+- Network errors display a generic "Connection error, please try again" toast.
+- Inline form validation errors are shown below fields (not as toasts).
 
 ## Testing Strategy
 

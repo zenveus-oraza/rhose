@@ -86,23 +86,21 @@ export function UserListPage() {
   ];
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-heading-page text-navy">User Management</h1>
-          <p className="mt-1 text-body text-muted-500">
-            Manage user accounts, roles, and segment assignments.
-          </p>
         </div>
         <button
           onClick={() => navigate('/admin/users/create')}
-          className="inline-flex items-center gap-2 rounded-xl bg-navy px-5 py-2.5 text-body font-medium text-white hover:bg-navy-600 transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-secondary px-5 py-2.5 text-body font-medium text-white hover:bg-secondary/90 transition-colors"
         >
           <Plus size={18} />
           Create User
         </button>
       </div>
+      <div className="border-b border-muted-200 mb-6" />
 
       {/* Search and Filter */}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -116,7 +114,7 @@ export function UserListPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded-xl border border-muted-200 bg-white py-2.5 pl-10 pr-4 text-body text-muted-800 placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+            className="w-full rounded-xl border border-muted-200 bg-white py-2.5 pl-10 pr-4 text-body text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
           />
         </div>
         <div className="relative">
@@ -124,7 +122,7 @@ export function UserListPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="appearance-none rounded-xl border border-muted-200 bg-white py-2.5 pl-9 pr-8 text-helper text-muted-700 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal transition-colors"
+            className="appearance-none rounded-xl border border-muted-200 bg-white py-2.5 pl-9 pr-8 text-helper text-muted-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
           >
             {STATUS_FILTERS.map((f) => (
               <option key={f} value={f}>
@@ -182,7 +180,7 @@ export function UserListPage() {
                     <tr key={user.id} className="hover:bg-muted-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-teal-700 font-medium text-helper">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
                             {user.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -222,7 +220,7 @@ export function UserListPage() {
               {filteredUsers.map((user) => (
                 <div key={user.id} className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-teal-700 font-medium text-helper">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                     <div>

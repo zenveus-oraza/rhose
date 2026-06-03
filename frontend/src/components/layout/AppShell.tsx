@@ -16,7 +16,7 @@ export function AppShell() {
         <header className="flex items-center border-b border-muted-200 bg-white px-4 py-3 lg:hidden">
           <MobileNav />
           <span className="ml-3 text-heading-card font-semibold text-navy">
-            Rhose
+            CMC Oral
           </span>
         </header>
 

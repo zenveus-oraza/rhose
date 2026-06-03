@@ -241,7 +241,14 @@ This plan implements the admin content management features for Milestone 2, cove
 - Property tests validate universal correctness properties from the design document using `fast-check`
 - Unit tests validate specific examples and edge cases
 - The tech stack is TypeScript throughout: Node.js/Express backend, React frontend, Drizzle ORM, Zod validation
-- UI implementation should follow `.kiro/steering/ui-style-guide.md`, `.kiro/steering/design-system.md`, and `.kiro/context/screenshot-catalog.md`
+- UI implementation must follow `.kiro/steering/design-clarifications.md` for colors, spacing, and component patterns
+- Use existing `AdminLayout.tsx` — do NOT create a separate sidebar component
+- Use `<Button>` component from `src/components/ui/Button.tsx` for all action buttons
+- Use `useToast()` from `src/components/ui/Toast.tsx` for API error/success feedback
+- Use real PNG icons from `public/icon/` where available (content_mang, dashboard, search, filter_list, add, edit, close, etc.)
+- Active nav state: `bg-primary text-white` (#75D8D5 background)
+- Sidebar: `bg-[#F8FAFC]`, `rounded-2xl`, dividers with `mx-4`
+- Project internal name: `cmc-oral`
 - Segment access duration fields are included in assignment schema for M3 compatibility but not enforced in M2
 
 ## Task Dependency Graph

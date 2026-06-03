@@ -89,7 +89,7 @@ export function ModuleDrawer({ open, onClose, segmentId, module }: ModuleDrawerP
               if (fieldErrors.title) setFieldErrors({});
             }}
             aria-invalid={!!fieldErrors.title}
-            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition ${
+            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
               fieldErrors.title ? 'border-danger-400' : 'border-muted-300'
             }`}
             placeholder="Enter module title"
@@ -108,7 +108,7 @@ export function ModuleDrawer({ open, onClose, segmentId, module }: ModuleDrawerP
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition resize-none"
+            className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition resize-none"
             placeholder="Enter a description (optional)"
           />
         </div>
@@ -125,7 +125,7 @@ export function ModuleDrawer({ open, onClose, segmentId, module }: ModuleDrawerP
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-navy px-4 py-2 text-helper font-medium text-white hover:bg-navy-600 transition disabled:opacity-60"
+            className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
           >
             {isPending ? 'Saving...' : isEditing ? 'Update Module' : 'Add Module'}
           </button>

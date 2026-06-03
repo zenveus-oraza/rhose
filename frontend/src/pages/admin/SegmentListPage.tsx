@@ -69,23 +69,23 @@ export function SegmentListPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="py-4 lg:px-8">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-heading-section text-navy">Content Management</h1>
-          <p className="text-body text-muted-600 mt-1">
-            Manage your learning segments, modules, and lessons
-          </p>
+          <h1 className="text-heading-page text-navy">Content Management</h1>
         </div>
         <button
           onClick={() => navigate('/admin/content/segments/create')}
-          className="inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-helper font-medium text-white hover:bg-navy-600 transition"
+          className="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
         >
           <Plus size={18} />
           <span>Create Segment</span>
         </button>
       </div>
+
+      {/* Divider */}
+      <div className="border-b border-muted-200 mb-6" />
 
       {/* Filter */}
       <div className="mb-4 flex items-center gap-3">
@@ -96,7 +96,7 @@ export function SegmentListPage() {
           id="status-filter"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as SegmentStatus | 'all')}
-          className="rounded-lg border border-muted-300 px-3 py-1.5 text-helper text-navy focus:outline-none focus:ring-2 focus:ring-teal-400"
+          className="rounded-lg border border-muted-300 px-3 py-1.5 text-helper text-navy focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="all">All</option>
           <option value="draft">Draft</option>
@@ -137,7 +137,7 @@ export function SegmentListPage() {
                         onClick={() => navigate(`/admin/content/segments/${segment.id}`)}
                         className="text-left"
                       >
-                        <p className="text-body font-medium text-navy hover:text-teal-600 transition">
+                        <p className="text-body font-medium text-navy hover:text-primary transition">
                           {segment.title}
                         </p>
                         {segment.description && (
@@ -173,7 +173,7 @@ export function SegmentListPage() {
           </p>
           <button
             onClick={() => navigate('/admin/content/segments/create')}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-helper font-medium text-white hover:bg-navy-600 transition"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
           >
             <Plus size={18} />
             <span>Create Segment</span>

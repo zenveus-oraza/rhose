@@ -7,8 +7,6 @@ import {
   BookOpen,
   Layers,
   GraduationCap,
-  Plus,
-  UserPlus,
   ArrowRight,
   Filter,
   Clock,
@@ -30,15 +28,13 @@ interface StatsCardProps {
 function StatsCard({ label, value, icon, iconBg }: StatsCardProps) {
   return (
     <div className="rounded-2xl border border-muted-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-4">
-        <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl', iconBg)}>
+      <div className="flex items-center gap-3">
+        <div className={cn('flex h-10 w-10 items-center justify-center rounded-full', iconBg)}>
           {icon}
         </div>
-        <div>
-          <p className="text-helper text-muted-500">{label}</p>
-          <p className="text-heading-section text-navy">{value}</p>
-        </div>
+        <p className="text-helper text-muted-500">{label}</p>
       </div>
+      <p className="text-heading-section text-navy mt-3">{value}</p>
     </div>
   );
 }
@@ -113,7 +109,7 @@ function RecentActivityItem({ activity }: { activity: ActivityItem }) {
   return (
     <div className="flex items-start gap-3 border-b border-muted-100 py-3 last:border-b-0">
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-50">
-        <Clock size={14} className="text-teal-600" />
+        <Clock size={14} className="text-primary" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-helper text-muted-700">{activity.description}</p>
@@ -146,36 +142,40 @@ export function AdminDashboard() {
   ];
 
   return (
-    <div className="p-4 lg:p-8">
+    <div className="pb-4 pt-1 lg:px-8">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-2">
         <p className="text-body text-muted-500">
           Hi{user?.name ? `, ${user.name}` : ' there'} 👋
         </p>
         <h1 className="text-heading-page text-navy">Dashboard</h1>
       </div>
 
+      {/* Divider */}
+      <div className="border-b border-muted-200 mb-6" />
+
       {/* Quick Actions */}
+      <h2 className="text-helper font-medium text-muted-500 mb-3">Quick Actions</h2>
       <div className="mb-6 flex flex-wrap gap-3">
         <Link
-          to="/admin/content"
-          className="inline-flex items-center gap-2 rounded-xl bg-navy px-4 py-2.5 text-helper font-medium text-white shadow-sm transition-colors hover:bg-navy-600"
+          to="/admin/assign-training"
+          className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-helper font-medium text-white shadow-sm transition-colors hover:bg-secondary/90"
         >
-          <ArrowRight size={16} />
+          <img src="/icon/assignment_add.png" alt="" className="h-4 w-4 invert brightness-0" />
           Assign Segment
         </Link>
         <Link
-          to="/admin/users"
-          className="inline-flex items-center gap-2 rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-helper font-medium text-navy shadow-sm transition-colors hover:bg-muted-50"
+          to="/admin/users/create"
+          className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-helper font-medium text-white shadow-sm transition-colors hover:bg-secondary/90"
         >
-          <UserPlus size={16} />
+          <img src="/icon/group_add.png" alt="" className="h-4 w-4 invert brightness-0" />
           Create User
         </Link>
         <Link
-          to="/admin/content"
-          className="inline-flex items-center gap-2 rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-helper font-medium text-navy shadow-sm transition-colors hover:bg-muted-50"
+          to="/admin/content/segments/create"
+          className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-helper font-medium text-white shadow-sm transition-colors hover:bg-secondary/90"
         >
-          <Plus size={16} />
+          <img src="/icon/add.png" alt="" className="h-4 w-4 invert brightness-0" />
           Add New Segment
         </Link>
       </div>
@@ -195,26 +195,26 @@ export function AdminDashboard() {
           <StatsCard
             label="Total Users"
             value={stats?.totalUsers ?? 0}
-            icon={<Users size={20} className="text-teal-600" />}
-            iconBg="bg-teal-50"
+            icon={<Users size={16} className="text-white" />}
+            iconBg="bg-primary"
           />
           <StatsCard
             label="Active Segments"
             value={stats?.totalSegments ?? 0}
-            icon={<Layers size={20} className="text-navy-400" />}
-            iconBg="bg-navy-50"
+            icon={<Layers size={16} className="text-white" />}
+            iconBg="bg-primary"
           />
           <StatsCard
             label="Total Modules"
             value={stats?.totalModules ?? 0}
-            icon={<BookOpen size={20} className="text-warning-500" />}
-            iconBg="bg-warning-50"
+            icon={<BookOpen size={16} className="text-white" />}
+            iconBg="bg-primary"
           />
           <StatsCard
             label="Total Lessons"
             value={stats?.totalLessons ?? 0}
-            icon={<GraduationCap size={20} className="text-success-600" />}
-            iconBg="bg-success-50"
+            icon={<GraduationCap size={16} className="text-white" />}
+            iconBg="bg-primary"
           />
         </div>
       )}
@@ -231,7 +231,7 @@ export function AdminDashboard() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as 'all' | SegmentStatus)}
-                  className="rounded-lg border border-muted-200 bg-white px-3 py-1.5 text-helper text-muted-600 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                  className="rounded-lg border border-muted-200 bg-white px-3 py-1.5 text-helper text-muted-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   aria-label="Filter segments by status"
                 >
                   <option value="all">All Status</option>
@@ -267,7 +267,7 @@ export function AdminDashboard() {
             <div className="mt-4 border-t border-muted-100 pt-3">
               <Link
                 to="/admin/content"
-                className="inline-flex items-center gap-1 text-helper font-medium text-teal-600 hover:text-teal-700"
+                className="inline-flex items-center gap-1 text-helper font-medium text-primary hover:text-primary/80"
               >
                 View all segments
                 <ArrowRight size={14} />
@@ -290,7 +290,7 @@ export function AdminDashboard() {
             <div className="mt-4 border-t border-muted-100 pt-3">
               <Link
                 to="/admin/users"
-                className="inline-flex items-center gap-1 text-helper font-medium text-teal-600 hover:text-teal-700"
+                className="inline-flex items-center gap-1 text-helper font-medium text-primary hover:text-primary/80"
               >
                 View user management
                 <ArrowRight size={14} />

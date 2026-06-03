@@ -5,7 +5,7 @@ type BadgeVariant = 'active' | 'deactivated' | 'draft' | 'archived' | 'in-progre
 const variantStyles: Record<BadgeVariant, string> = {
   active: 'bg-success-50 text-success-700 border-success-200',
   completed: 'bg-success-50 text-success-700 border-success-200',
-  'in-progress': 'bg-teal-50 text-teal-700 border-teal-200',
+  'in-progress': 'bg-teal-50 text-primary border-teal-200',
   draft: 'bg-warning-50 text-warning-700 border-warning-200',
   'not-started': 'bg-muted-100 text-muted-600 border-muted-200',
   archived: 'bg-muted-100 text-muted-600 border-muted-300',

@@ -20,7 +20,7 @@ const config: Config = {
       },
       colors: {
         primary: '#75D8D5',
-        secondary: '#75D8D5',
+        secondary: '#0F172A',
         active: '#0F172A',
         navy: {
           DEFAULT: '#1B2559',

@@ -118,7 +118,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
+    <div className="py-4 lg:px-8">
       {/* Cover/splash image */}
       <div className="relative rounded-xl overflow-hidden">
         <img

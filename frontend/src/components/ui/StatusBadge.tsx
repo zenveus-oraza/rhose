@@ -7,7 +7,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   active: 'bg-success-50 text-success-700 border-success-200',
   archived: 'bg-muted-100 text-muted-600 border-muted-200',
   deactivated: 'bg-danger-50 text-danger-700 border-danger-200',
-  text: 'bg-teal-50 text-teal-700 border-teal-200',
+  text: 'bg-teal-50 text-primary border-teal-200',
   video: 'bg-navy-50 text-navy-600 border-navy-200',
 };
 
