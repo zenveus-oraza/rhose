@@ -30,13 +30,20 @@ Relevant screenshot assets:
 M1 covers authentication, profile, base layout foundations, and core models.
 
 Auth/profile screenshot interpretation:
-- Desktop auth screens use a split layout: left teal visual panel, right form.
-- Mobile auth screens use a single-column form with no teal side panel.
-- Login includes email, password, remember me, navy Login button, Forgot Password link, and Contact your admin support link.
-- Forgot Password includes email field and Send Email button.
-- Reset/Set Password includes new password, confirm password, strength/rule helper, and disabled/enabled submit state.
-- Profile page includes sidebar, cover image, avatar, role/job title text, Profile and Password tabs, editable fields, Cancel/Save/Edit actions, and logout on mobile.
-- Base admin/learner layout shells must be created only enough to support future screens, not full dashboard behavior.
+- **Global Padding**: A 12px padding is applied at the top layer to all screen content, including navigation and all child elements.
+- **Login Screens**: Plain color background (no decorative circles). Desktop uses split layout: left plain color side, right form. Mobile uses single-column form only.
+- **Primary Colors**:
+  - Primary/Secondary Button Color: #75D8D5 (Teal)
+  - Active Button Color: #0F172A (Dark Navy)
+  - Navigation Background: #F8FAFC (Light Gray)
+- **Login** includes email, password, remember me, #75D8D5 Login button, Forgot Password link, and Contact your admin support link.
+- **Forgot Password** includes email field and Send Email button.
+- **Reset/Set Password** includes new password, confirm password, strength/rule helper, and disabled/enabled submit state.
+- **Profile page** includes sidebar, cover image, avatar, role/job title text, Profile and Password tabs, editable fields, Cancel/Save/Edit actions, and logout on mobile.
+- **Navigation/Sidebar**: Uses #F8FAFC background. Bottom section shows logout only for learners, and settings + logout for admins (no user name displayed). Same 12px padding applies.
+- **Icons**: Real icons are in `public/icon/` folder. Project logo for navbar is available.
+- **Project Name**: Internal reference is `cmc-oral`.
+- **Base admin/learner layout shells** must be created only enough to support future screens, not full dashboard behavior.
 
 ### Milestone UI/Figma Gaps and Clarifications
 
@@ -111,6 +118,10 @@ graph TD
 - Use shared components for Button, FormField, Select/Dropdown, StatusBadge, Card, ActionMenu, SuccessModal, Sidebar, ProgressBar, and SegmentAccordion.
 - Keep loading, empty, disabled, and error states visually consistent with the screenshot catalog.
 - Mobile screens must be intentionally designed as stacked cards/drawers, not compressed desktop tables.
+- **Global 12px padding applies to all screen content at the top layer, including navigation and all child elements.**
+- **All colors are defined by: primary/secondary button #75D8D5, active button #0F172A, navbar background #F8FAFC.**
+- **Icons from `public/icon/` folder should be used throughout the UI.**
+- **Project internal name: `cmc-oral`.**
 
 ### UI Implementation Instructions
 
