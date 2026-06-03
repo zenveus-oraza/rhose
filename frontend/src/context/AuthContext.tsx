@@ -11,6 +11,7 @@ import {
   getStoredToken,
   setStoredToken,
   clearStoredToken,
+  apiClient,
 } from '@/services/api';
 import { login as loginApi } from '@/services/auth.service';
 
@@ -18,19 +19,19 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function decodeTokenPayload(token: string): User | null {
+function decodeTokenPayload(token: string): Partial<User> | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return {
       id: payload.userId ?? payload.sub,
-      email: payload.email,
-      name: payload.name,
       role: payload.role,
     };
   } catch {
@@ -41,19 +42,42 @@ function decodeTokenPayload(token: string): User | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const profile = await apiClient<User>('/users/profile');
+      setUser(profile);
+    } catch (err) {
+      // Only clear auth on actual 401 (expired/invalid token)
+      if (err instanceof Error && 'status' in err && (err as any).status === 401) {
+        clearStoredToken();
+        setToken(null);
+        setUser(null);
+      }
+      // For network errors or other failures, keep the token-decoded user
+      // so the user isn't randomly logged out
+    }
+  }, []);
 
   useEffect(() => {
     const storedToken = getStoredToken();
     if (storedToken) {
       const decoded = decodeTokenPayload(storedToken);
-      if (decoded) {
+      if (decoded && decoded.id && decoded.role) {
         setToken(storedToken);
-        setUser(decoded);
+        // Set minimal user from JWT immediately so we don't flash logout
+        setUser({ id: decoded.id, name: '', email: '', role: decoded.role } as User);
+        // Then try to fetch full profile
+        fetchProfile().finally(() => setIsLoading(false));
       } else {
         clearStoredToken();
+        setIsLoading(false);
       }
+    } else {
+      setIsLoading(false);
     }
-  }, []);
+  }, [fetchProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await loginApi(email, password);
@@ -68,12 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    await fetchProfile();
+  }, [fetchProfile]);
+
   const value: AuthContextValue = {
     user,
     token,
     isAuthenticated: !!token && !!user,
+    isLoading,
     login,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

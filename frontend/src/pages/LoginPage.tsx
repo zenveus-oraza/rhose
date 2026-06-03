@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 
 function LoginLeftExtra() {
   return (
@@ -26,11 +27,11 @@ function LoginLeftExtra() {
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<{
@@ -57,7 +58,6 @@ export function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError('');
 
     if (!validate()) return;
 
@@ -67,7 +67,7 @@ export function LoginPage() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'An unexpected error occurred';
-      setError(message);
+      toast('error', message);
     } finally {
       setIsLoading(false);
     }
@@ -80,15 +80,6 @@ export function LoginPage() {
       leftExtra={<LoginLeftExtra />}
     >
       <div>
-        {error && (
-          <div
-            role="alert"
-            className="mb-6 rounded-md border border-danger-200 bg-danger-50 px-4 py-3 text-helper text-danger-700"
-          >
-            {error}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} noValidate className="space-y-5">
           {/* Email field */}
           <div>
