@@ -154,13 +154,21 @@ export function SegmentDetailsPage() {
               </button>
             )}
             {segment.status === 'active' && (
-              <button
-                onClick={() => handleStatusChange('archived')}
-                disabled={updateSegment.isPending}
-                className="rounded-lg border border-muted-300 px-3 py-1.5 text-helper font-medium text-muted-700 hover:bg-muted-50 transition disabled:opacity-60"
-              >
-                Archive
-              </button>
+              <>
+                <button
+                  onClick={() => navigate(`/admin/assign-training?segmentId=${id}`)}
+                  className="rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
+                >
+                  Assign Users
+                </button>
+                <button
+                  onClick={() => handleStatusChange('archived')}
+                  disabled={updateSegment.isPending}
+                  className="rounded-lg border border-muted-300 px-3 py-1.5 text-helper font-medium text-muted-700 hover:bg-muted-50 transition disabled:opacity-60"
+                >
+                  Archive
+                </button>
+              </>
             )}
             <button
               onClick={() => navigate(`/admin/content/segments/${id}/edit`)}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search, Bell } from 'lucide-react';
 import {
   useSegments,
@@ -12,10 +12,20 @@ import type { UserProfile, Segment } from '@/types/admin';
 
 export function AssignTrainingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preSelectedSegmentId = searchParams.get('segmentId');
 
   // Segment selection
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const { data: segmentsData, isLoading: segmentsLoading } = useSegments({ limit: 100 });
+
+  // Pre-select segment from URL param when segments load
+  useEffect(() => {
+    if (preSelectedSegmentId && segmentsData?.data && !selectedSegment) {
+      const seg = segmentsData.data.find((s) => s.id === preSelectedSegmentId && s.status === 'active');
+      if (seg) setSelectedSegment(seg);
+    }
+  }, [preSelectedSegmentId, segmentsData?.data, selectedSegment]);
 
   // Users list with pagination for infinite scroll
   const [userPage, setUserPage] = useState(1);
@@ -37,7 +47,7 @@ export function AssignTrainingPage() {
 
   // Form state
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  const [sendNotification, setSendNotification] = useState(false);
+  const [sendNotification, setSendNotification] = useState(true);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
 
