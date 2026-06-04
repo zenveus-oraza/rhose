@@ -135,7 +135,7 @@ export function ProfilePage() {
       </div>
 
       {/* Avatar + Name row — avatar overlaps cover (small part in cover, most below) */}
-      <div className="relative -mt-10 ml-6 flex items-end gap-4 mb-6">
+      <div className="relative -mt-5 ml-6 flex items-end gap-4 mb-6">
         {/* Avatar with upload overlay */}
         <ProfileImageUpload
           currentImage={avatarSrc}
@@ -277,13 +277,23 @@ export function ProfilePage() {
                     Job Title
                   </label>
                   {isEditing ? (
-                    <input
+                    <select
                       id="profile-job-title"
-                      type="text"
                       value={jobTitle}
                       onChange={(e) => setJobTitle(e.target.value)}
-                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
+                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Select job title</option>
+                      <option value="Dental Hygienist">Dental Hygienist</option>
+                      <option value="Dental Assistant">Dental Assistant</option>
+                      <option value="Practice Manager">Practice Manager</option>
+                      <option value="Associate Dentist">Associate Dentist</option>
+                      <option value="Lead Dentist">Lead Dentist</option>
+                      <option value="Clinical Director">Clinical Director</option>
+                      <option value="Sterilization Technician">Sterilization Technician</option>
+                      <option value="Lab Technician">Lab Technician</option>
+                      <option value="Dental Practitioner">Dental Practitioner</option>
+                    </select>
                   ) : (
                     <p className="rounded-lg border border-muted-200 bg-muted-50 px-4 py-2.5 text-body text-navy">
                       {user?.jobTitle || '-'}
