@@ -8,7 +8,9 @@ export interface Segment {
   id: string;
   title: string;
   description: string | null;
+  duration: number | null;
   status: SegmentStatus;
+  moduleCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,11 +22,13 @@ export interface SegmentWithModuleCount extends Segment {
 export interface CreateSegmentInput {
   title: string;
   description?: string;
+  duration: number;
 }
 
 export interface UpdateSegmentInput {
   title?: string;
   description?: string;
+  duration?: number;
   status?: SegmentStatus;
 }
 
@@ -68,6 +72,8 @@ export interface Lesson {
   contentType: LessonContentType;
   contentBody: string | null;
   videoUrl: string | null;
+  estimatedTimeValue: number | null;
+  estimatedTimeUnit: 'minutes' | 'hours' | null;
   moduleId: string;
   sortOrder: number;
   createdAt: string;
@@ -79,6 +85,8 @@ export interface CreateLessonInput {
   content_type: LessonContentType;
   content_body?: string;
   video_url?: string;
+  estimated_time_value?: number;
+  estimated_time_unit?: 'minutes' | 'hours';
 }
 
 export interface UpdateLessonInput {
@@ -86,6 +94,8 @@ export interface UpdateLessonInput {
   content_type?: LessonContentType;
   content_body?: string;
   video_url?: string;
+  estimated_time_value?: number;
+  estimated_time_unit?: 'minutes' | 'hours';
 }
 
 // --- User Management Types ---
@@ -99,6 +109,9 @@ export interface UserProfile {
   email: string;
   role: string;
   status: string;
+  jobTitle?: string;
+  phone?: string;
+  profileImage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +125,9 @@ export interface CreateUserInput {
 export interface UpdateUserInput {
   name?: string;
   role?: UserRole;
+  phone?: string | null;
+  jobTitle?: string | null;
+  profileImage?: string | null;
 }
 
 export interface CreateUserResponse extends UserProfile {
@@ -139,6 +155,13 @@ export interface UserListParams {
   search?: string;
 }
 
+export interface SegmentListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: SegmentStatus;
+}
+
 // --- Assignment Types ---
 
 export interface Assignment {
@@ -160,6 +183,7 @@ export interface SegmentAssignment {
   userId: string;
   name: string;
   email: string;
+  jobTitle?: string | null;
   role: string;
   status: string;
   assignedAt: string;

@@ -21,9 +21,9 @@ vi.mock('../db/index.js', () => {
   const mockValues = vi.fn(() => ({ returning: mockReturning }));
   const mockInsert = vi.fn(() => ({ values: mockValues }));
 
+  const mockOffset = vi.fn();
   const mockOrderBy = vi.fn();
   const mockLimit = vi.fn();
-  const mockOffset = vi.fn(() => ({ limit: mockLimit }));
   const mockWhere = vi.fn(() => ({ limit: mockLimit, orderBy: mockOrderBy, offset: mockOffset }));
   const mockInnerJoin = vi.fn(() => ({ where: mockWhere }));
   const mockFrom = vi.fn(() => ({ where: mockWhere, orderBy: mockOrderBy, innerJoin: mockInnerJoin }));
@@ -51,6 +51,7 @@ vi.mock('../db/index.js', () => {
         mockFrom,
         mockWhere,
         mockLimit,
+        mockOffset,
         mockOrderBy,
         mockInnerJoin,
         mockUpdate,
@@ -99,12 +100,12 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
     vi.clearAllMocks();
   });
 
-  it('should create a segment, add modules with correct sort_order, add lessons with correct sort_order, and verify listing order', async () => {
-    // Step 1: Create a segment
+  it('should create a segment with duration and verify duration in response', async () => {
     const mockSegment = {
-      id: 'seg-integration-1',
+      id: 'seg-1',
       title: 'Integration Segment',
       description: 'Full hierarchy test',
+      duration: 30,
       status: 'draft',
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
@@ -115,15 +116,20 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
     const segment = await segmentService.create({
       title: 'Integration Segment',
       description: 'Full hierarchy test',
+      duration: 30,
     });
 
-    expect(segment.id).toBe('seg-integration-1');
+    expect(segment.id).toBe('seg-1');
     expect(segment.status).toBe('draft');
+    expect(segment.duration).toBe(30);
+    expect(segment.title).toBe('Integration Segment');
+  });
 
-    // Step 2: Add first module — should get sort_order 1
+  it('should create modules under segment and verify sort_order auto-assignment', async () => {
+    // Create first module — should get sort_order 1
     const mockModule1 = {
       id: 'mod-1',
-      segmentId: 'seg-integration-1',
+      segmentId: 'seg-1',
       title: 'Module One',
       description: null,
       sortOrder: 1,
@@ -139,7 +145,7 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue([{ id: 'seg-integration-1' }]),
+              limit: vi.fn().mockResolvedValue([{ id: 'seg-1' }]),
             })),
           })),
         };
@@ -153,13 +159,14 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
     });
     mocks.mockReturning.mockResolvedValueOnce([mockModule1]);
 
-    const module1 = await moduleService.create('seg-integration-1', { title: 'Module One' });
+    const module1 = await moduleService.create('seg-1', { title: 'Module One' });
     expect(module1.sortOrder).toBe(1);
+    expect(module1.title).toBe('Module One');
 
-    // Step 3: Add second module — should get sort_order 2
+    // Create second module — should get sort_order 2
     const mockModule2 = {
       id: 'mod-2',
-      segmentId: 'seg-integration-1',
+      segmentId: 'seg-1',
       title: 'Module Two',
       description: null,
       sortOrder: 2,
@@ -174,7 +181,7 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue([{ id: 'seg-integration-1' }]),
+              limit: vi.fn().mockResolvedValue([{ id: 'seg-1' }]),
             })),
           })),
         };
@@ -188,10 +195,12 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
     });
     mocks.mockReturning.mockResolvedValueOnce([mockModule2]);
 
-    const module2 = await moduleService.create('seg-integration-1', { title: 'Module Two' });
+    const module2 = await moduleService.create('seg-1', { title: 'Module Two' });
     expect(module2.sortOrder).toBe(2);
+  });
 
-    // Step 4: Add lessons to module 1
+  it('should create lessons with estimated_time fields and verify in listing', async () => {
+    // Create a lesson with estimated time
     const mockLesson1 = {
       id: 'lesson-1',
       moduleId: 'mod-1',
@@ -199,12 +208,14 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
       contentType: 'text',
       contentBody: 'Hello world',
       videoUrl: null,
+      estimatedTimeValue: 15,
+      estimatedTimeUnit: 'minutes',
       sortOrder: 1,
       createdAt: new Date('2024-01-04'),
       updatedAt: new Date('2024-01-04'),
     };
 
-    selectCallCount = 0;
+    let selectCallCount = 0;
     mocks.mockSelect.mockImplementation(() => {
       selectCallCount++;
       if (selectCallCount === 1) {
@@ -228,10 +239,14 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
       title: 'Lesson One',
       content_type: 'text',
       content_body: 'Hello world',
+      estimated_time_value: 15,
+      estimated_time_unit: 'minutes',
     });
     expect(lesson1.sortOrder).toBe(1);
+    expect(lesson1.estimatedTimeValue).toBe(15);
+    expect(lesson1.estimatedTimeUnit).toBe('minutes');
 
-    // Step 5: Add second lesson to module 1 — should get sort_order 2
+    // Create a second lesson with different estimated time
     const mockLesson2 = {
       id: 'lesson-2',
       moduleId: 'mod-1',
@@ -239,6 +254,8 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
       contentType: 'video',
       contentBody: null,
       videoUrl: 'https://example.com/video.mp4',
+      estimatedTimeValue: 2,
+      estimatedTimeUnit: 'hours',
       sortOrder: 2,
       createdAt: new Date('2024-01-05'),
       updatedAt: new Date('2024-01-05'),
@@ -268,48 +285,19 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
       title: 'Lesson Two',
       content_type: 'video',
       video_url: 'https://example.com/video.mp4',
+      estimated_time_value: 2,
+      estimated_time_unit: 'hours',
     });
     expect(lesson2.sortOrder).toBe(2);
+    expect(lesson2.estimatedTimeValue).toBe(2);
+    expect(lesson2.estimatedTimeUnit).toBe('hours');
 
-    // Step 6: Verify listing returns modules in sort_order
+    // Verify listing returns lessons with estimated time in correct order
     selectCallCount = 0;
     mocks.mockSelect.mockImplementation(() => {
       selectCallCount++;
       if (selectCallCount === 1) {
-        // Verify segment exists
-        return {
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue([{ id: 'seg-integration-1' }]),
-            })),
-          })),
-        };
-      }
-      // Return modules ordered by sort_order
-      return {
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            orderBy: vi.fn().mockResolvedValue([
-              { id: 'mod-1', title: 'Module One', sortOrder: 1, lessonCount: 2 },
-              { id: 'mod-2', title: 'Module Two', sortOrder: 2, lessonCount: 0 },
-            ]),
-          })),
-        })),
-      };
-    });
-
-    const moduleList = await moduleService.listBySegment('seg-integration-1');
-    expect(moduleList).toHaveLength(2);
-    expect(moduleList[0].sortOrder).toBe(1);
-    expect(moduleList[1].sortOrder).toBe(2);
-    expect(moduleList[0].title).toBe('Module One');
-    expect(moduleList[1].title).toBe('Module Two');
-
-    // Step 7: Verify listing returns lessons in sort_order
-    selectCallCount = 0;
-    mocks.mockSelect.mockImplementation(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) {
+        // Verify module exists
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
@@ -318,41 +306,48 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
           })),
         };
       }
+      if (selectCallCount === 2) {
+        // Count query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 2 }]),
+          })),
+        };
+      }
+      // Main listing query
       return {
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            orderBy: vi.fn().mockResolvedValue([
-              { id: 'lesson-1', title: 'Lesson One', sortOrder: 1, contentType: 'text' },
-              { id: 'lesson-2', title: 'Lesson Two', sortOrder: 2, contentType: 'video' },
-            ]),
+            orderBy: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                offset: vi.fn().mockResolvedValue([
+                  { id: 'lesson-1', title: 'Lesson One', sortOrder: 1, contentType: 'text', estimatedTimeValue: 15, estimatedTimeUnit: 'minutes', moduleId: 'mod-1', createdAt: new Date(), updatedAt: new Date() },
+                  { id: 'lesson-2', title: 'Lesson Two', sortOrder: 2, contentType: 'video', estimatedTimeValue: 2, estimatedTimeUnit: 'hours', moduleId: 'mod-1', createdAt: new Date(), updatedAt: new Date() },
+                ]),
+              })),
+            })),
           })),
         })),
       };
     });
 
-    const lessonList = await lessonService.listByModule('mod-1');
+    const lessonResult = await lessonService.listByModule('mod-1');
+    const lessonList = lessonResult.data;
     expect(lessonList).toHaveLength(2);
     expect(lessonList[0].sortOrder).toBe(1);
+    expect(lessonList[0].estimatedTimeValue).toBe(15);
+    expect(lessonList[0].estimatedTimeUnit).toBe('minutes');
     expect(lessonList[1].sortOrder).toBe(2);
-    expect(lessonList[0].title).toBe('Lesson One');
-    expect(lessonList[1].title).toBe('Lesson Two');
+    expect(lessonList[1].estimatedTimeValue).toBe(2);
+    expect(lessonList[1].estimatedTimeUnit).toBe('hours');
   });
 
-  it('should maintain sort_order contiguity after adding third module', async () => {
-    const mockModule3 = {
-      id: 'mod-3',
-      segmentId: 'seg-1',
-      title: 'Module Three',
-      description: null,
-      sortOrder: 3,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
+  it('should verify full hierarchy listing: segment with modules ordered by sort_order', async () => {
     let selectCallCount = 0;
     mocks.mockSelect.mockImplementation(() => {
       selectCallCount++;
       if (selectCallCount === 1) {
+        // Verify segment exists
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
@@ -361,18 +356,42 @@ describe('Integration: Content Hierarchy Flow (Segment → Module → Lesson)', 
           })),
         };
       }
+      if (selectCallCount === 2) {
+        // Count query for modules in segment
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 3 }]),
+          })),
+        };
+      }
+      // Main listing query: return modules ordered by sort_order
       return {
         from: vi.fn(() => ({
-          where: vi.fn().mockResolvedValue([{ maxOrder: 2 }]),
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                offset: vi.fn().mockResolvedValue([
+                  { id: 'mod-1', title: 'Module One', sortOrder: 1, segmentId: 'seg-1', lessonCount: 2, createdAt: new Date(), updatedAt: new Date() },
+                  { id: 'mod-2', title: 'Module Two', sortOrder: 2, segmentId: 'seg-1', lessonCount: 1, createdAt: new Date(), updatedAt: new Date() },
+                  { id: 'mod-3', title: 'Module Three', sortOrder: 3, segmentId: 'seg-1', lessonCount: 0, createdAt: new Date(), updatedAt: new Date() },
+                ]),
+              })),
+            })),
+          })),
         })),
       };
     });
-    mocks.mockReturning.mockResolvedValueOnce([mockModule3]);
 
-    const module3 = await moduleService.create('seg-1', { title: 'Module Three' });
-    expect(module3.sortOrder).toBe(3);
+    const moduleResult = await moduleService.listBySegment('seg-1');
+    const moduleList = moduleResult.data;
+    expect(moduleList).toHaveLength(3);
+    expect(moduleList[0].sortOrder).toBe(1);
+    expect(moduleList[0].title).toBe('Module One');
+    expect(moduleList[1].sortOrder).toBe(2);
+    expect(moduleList[2].sortOrder).toBe(3);
   });
 });
+
 
 
 // ============================================================================
@@ -389,6 +408,7 @@ describe('Integration: Referential Integrity (HAS_CHILDREN rejection)', () => {
       id: 'seg-with-modules',
       title: 'Segment With Modules',
       description: null,
+      duration: 14,
       status: 'active',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -476,6 +496,7 @@ describe('Integration: Referential Integrity (HAS_CHILDREN rejection)', () => {
       id: 'seg-empty',
       title: 'Empty Segment',
       description: null,
+      duration: 7,
       status: 'draft',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -564,6 +585,7 @@ describe('Integration: Referential Integrity (HAS_CHILDREN rejection)', () => {
     await expect(moduleService.delete('mod-empty')).resolves.toBeUndefined();
   });
 });
+
 
 
 // ============================================================================
@@ -725,6 +747,7 @@ describe('Integration: Auth Flow (admin-only endpoints reject non-admin and unau
 });
 
 
+
 // ============================================================================
 // Test Suite 4: Assignment Flow
 // ============================================================================
@@ -801,28 +824,43 @@ describe('Integration: Assignment Flow (assign → list → remove → verify)',
           })),
         };
       }
-      // Return assigned users
+      if (selectCallCount === 2) {
+        // Count query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 1 }]),
+          })),
+        };
+      }
+      // Return assigned users (paginated query with innerJoin)
       return {
         from: vi.fn(() => ({
           innerJoin: vi.fn(() => ({
-            where: vi.fn().mockResolvedValue([
-              {
-                id: 'assign-1',
-                userId: 'user-1',
-                name: 'Test User',
-                email: 'test@example.com',
-                role: 'learner',
-                status: 'active',
-                assignedAt: new Date('2024-03-01'),
-                accessDurationDays: null,
-              },
-            ]),
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue([
+                    {
+                      id: 'assign-1',
+                      userId: 'user-1',
+                      name: 'Test User',
+                      email: 'test@example.com',
+                      role: 'learner',
+                      status: 'active',
+                      assignedAt: new Date('2024-03-01'),
+                      accessDurationDays: null,
+                    },
+                  ]),
+                })),
+              })),
+            })),
           })),
         })),
       };
     });
 
-    const assignedUsers = await assignmentService.listBySegment('seg-1');
+    const assignmentResult = await assignmentService.listBySegment('seg-1');
+    const assignedUsers = assignmentResult.data;
     expect(assignedUsers).toHaveLength(1);
     expect(assignedUsers[0].userId).toBe('user-1');
     expect(assignedUsers[0].name).toBe('Test User');
@@ -847,6 +885,7 @@ describe('Integration: Assignment Flow (assign → list → remove → verify)',
     mocks.mockSelect.mockImplementation(() => {
       selectCallCount++;
       if (selectCallCount === 1) {
+        // Segment exists
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
@@ -855,17 +894,32 @@ describe('Integration: Assignment Flow (assign → list → remove → verify)',
           })),
         };
       }
+      if (selectCallCount === 2) {
+        // Count query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 0 }]),
+          })),
+        };
+      }
+      // Empty paginated result
       return {
         from: vi.fn(() => ({
           innerJoin: vi.fn(() => ({
-            where: vi.fn().mockResolvedValue([]),
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue([]),
+                })),
+              })),
+            })),
           })),
         })),
       };
     });
 
-    const assignedUsersAfterRemoval = await assignmentService.listBySegment('seg-1');
-    expect(assignedUsersAfterRemoval).toHaveLength(0);
+    const emptyResult = await assignmentService.listBySegment('seg-1');
+    expect(emptyResult.data).toHaveLength(0);
   });
 
   it('should reject duplicate assignment with 409 CONFLICT', async () => {
@@ -968,6 +1022,7 @@ describe('Integration: Assignment Flow (assign → list → remove → verify)',
 });
 
 
+
 // ============================================================================
 // Test Suite 5: Dashboard Stats Accuracy
 // ============================================================================
@@ -978,8 +1033,6 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
   });
 
   it('should return accurate counts after creating segments, modules, lessons, and users', async () => {
-    // Simulate the dashboard stats endpoint logic by importing the router
-    // and testing the handler directly (same pattern as admin.dashboard.spec.ts)
     const mockFrom = vi.fn()
       .mockResolvedValueOnce([{ count: 3 }])   // 3 segments
       .mockResolvedValueOnce([{ count: 7 }])   // 7 modules
@@ -1095,5 +1148,184 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
         totalUsers: 5,
       },
     });
+  });
+});
+
+
+
+// ============================================================================
+// Test Suite 6: Data Readiness for M3 and M4
+// ============================================================================
+
+describe('Integration: Data Readiness for M3 Learner Viewing and M4 Quiz Association', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should verify segment getById includes duration and moduleCount for M3 consumption', async () => {
+    const mockSegment = {
+      id: 'seg-m3',
+      title: 'Segment for Learner',
+      description: 'Ready for M3',
+      duration: 45,
+      status: 'active',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let selectCallCount = 0;
+    mocks.mockSelect.mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) {
+        // Segment query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue([mockSegment]),
+            })),
+          })),
+        };
+      }
+      // Module count query
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn().mockResolvedValue([{ count: 3 }]),
+        })),
+      };
+    });
+
+    const result = await segmentService.getById('seg-m3');
+
+    // M3 needs: id, title, description, duration, status, moduleCount
+    expect(result.id).toBe('seg-m3');
+    expect(result.title).toBe('Segment for Learner');
+    expect(result.description).toBe('Ready for M3');
+    expect(result.duration).toBe(45);
+    expect(result.status).toBe('active');
+    expect(result.moduleCount).toBe(3);
+  });
+
+  it('should verify lesson getById includes all fields needed for M3 viewing and M4 quiz association', async () => {
+    const mockLesson = {
+      id: 'lesson-m3',
+      moduleId: 'mod-1',
+      title: 'Lesson for Learner',
+      contentType: 'text',
+      contentBody: 'Full lesson content here for the learner to read',
+      videoUrl: null,
+      estimatedTimeValue: 30,
+      estimatedTimeUnit: 'minutes',
+      sortOrder: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mocks.mockSelect.mockImplementation(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([mockLesson]),
+        })),
+      })),
+    }));
+
+    const result = await lessonService.getById('lesson-m3');
+
+    // M3 needs: id, moduleId, title, contentType, contentBody/videoUrl, estimatedTimeValue/Unit, sortOrder
+    expect(result.id).toBe('lesson-m3');
+    expect(result.moduleId).toBe('mod-1');
+    expect(result.title).toBe('Lesson for Learner');
+    expect(result.contentType).toBe('text');
+    expect(result.contentBody).toBe('Full lesson content here for the learner to read');
+    expect(result.estimatedTimeValue).toBe(30);
+    expect(result.estimatedTimeUnit).toBe('minutes');
+    expect(result.sortOrder).toBe(1);
+
+    // M4 needs: id and moduleId to associate quizzes
+    expect(result.id).toBeDefined();
+    expect(result.moduleId).toBeDefined();
+  });
+
+  it('should verify video lesson getById returns video_url for M3 viewing', async () => {
+    const mockVideoLesson = {
+      id: 'lesson-video',
+      moduleId: 'mod-1',
+      title: 'Video Lesson',
+      contentType: 'video',
+      contentBody: null,
+      videoUrl: 'https://example.com/learning-video.mp4',
+      estimatedTimeValue: 1,
+      estimatedTimeUnit: 'hours',
+      sortOrder: 2,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mocks.mockSelect.mockImplementation(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([mockVideoLesson]),
+        })),
+      })),
+    }));
+
+    const result = await lessonService.getById('lesson-video');
+
+    expect(result.contentType).toBe('video');
+    expect(result.videoUrl).toBe('https://example.com/learning-video.mp4');
+    expect(result.estimatedTimeValue).toBe(1);
+    expect(result.estimatedTimeUnit).toBe('hours');
+  });
+
+  it('should verify assignment structure includes accessDurationDays for M3 access control', async () => {
+    const mockAssignment = {
+      id: 'assign-m3',
+      userId: 'user-1',
+      segmentId: 'seg-1',
+      accessDurationDays: 90,
+      assignedAt: new Date('2024-03-01'),
+    };
+
+    let selectCallCount = 0;
+    mocks.mockSelect.mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue([{ id: 'user-1' }]),
+            })),
+          })),
+        };
+      }
+      if (selectCallCount === 2) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue([{ id: 'seg-1' }]),
+            })),
+          })),
+        };
+      }
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue([]),
+          })),
+        })),
+      };
+    });
+    mocks.mockReturning.mockResolvedValueOnce([mockAssignment]);
+
+    const result = await assignmentService.assign({
+      userId: 'user-1',
+      segmentId: 'seg-1',
+      accessDurationDays: 90,
+    });
+
+    // M3 needs accessDurationDays for per-user access window enforcement
+    expect(result.accessDurationDays).toBe(90);
+    expect(result.assignedAt).toBeDefined();
+    expect(result.userId).toBe('user-1');
+    expect(result.segmentId).toBe('seg-1');
   });
 });

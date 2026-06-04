@@ -9,6 +9,8 @@ import {
   FileText,
   Video,
   Users,
+  GripVertical,
+  Clock,
 } from 'lucide-react';
 import {
   useSegment,
@@ -16,6 +18,8 @@ import {
   useLessons,
   useDeleteModule,
   useDeleteLesson,
+  useReorderModules,
+  useReorderLessons,
   useSegmentAssignments,
   useUpdateSegment,
 } from '@/hooks/useAdminApi';
@@ -32,12 +36,20 @@ export function SegmentDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  // Pagination state
+  const [modulePage, setModulePage] = useState(1);
+  const [assignmentPage, setAssignmentPage] = useState(1);
+
   const { data: segment, isLoading, error } = useSegment(id!);
-  const { data: modules } = useModules(id!);
-  const { data: assignments } = useSegmentAssignments(id!);
+  const { data: modulesData } = useModules(id!, { page: modulePage, limit: 10 });
+  const { data: assignmentsData } = useSegmentAssignments(id!, { page: assignmentPage, limit: 20 });
   const updateSegment = useUpdateSegment();
   const deleteModule = useDeleteModule();
   const deleteLesson = useDeleteLesson();
+  const reorderModules = useReorderModules();
+
+  const modules = modulesData?.data ?? [];
+  const assignments = assignmentsData?.data ?? [];
 
   // Drawer state
   const [moduleDrawerOpen, setModuleDrawerOpen] = useState(false);
@@ -68,6 +80,22 @@ export function SegmentDetailsPage() {
   function handleStatusChange(newStatus: SegmentStatus) {
     if (!id) return;
     updateSegment.mutate({ id, data: { status: newStatus } });
+  }
+
+  function handleReorderModule(currentIndex: number, direction: 'up' | 'down') {
+    if (!id || !modules || modules.length < 2) return;
+    const newOrder = [...modules];
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+
+    // Swap the items
+    [newOrder[currentIndex], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[currentIndex]];
+
+    // Submit the new order
+    reorderModules.mutate({
+      segmentId: id,
+      data: { orderedIds: newOrder.map((m) => m.id) },
+    });
   }
 
   if (isLoading) {
@@ -101,9 +129,18 @@ export function SegmentDetailsPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-heading-page text-navy">{segment.title}</h1>
+              <h1 className="text-xl font-bold text-navy">{segment.title}</h1>
               <StatusBadge variant={segment.status} />
             </div>
+            {segment.description && (
+              <p className="mt-2 text-body text-muted-600 max-w-2xl">{segment.description}</p>
+            )}
+            {segment.duration && (
+              <div className="mt-2 inline-flex items-center gap-1.5 text-helper text-muted-500">
+                <Clock size={14} />
+                <span>{segment.duration} days</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -178,7 +215,7 @@ export function SegmentDetailsPage() {
       {/* Modules Section */}
       <div className="rounded-xl border border-muted-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-muted-200 px-6 py-4">
-          <h2 className="text-heading-card text-navy">Modules & Lessons</h2>
+          <h2 className="text-base font-semibold text-navy">Modules & Lessons</h2>
           <button
             onClick={() => {
               setEditingModule(null);
@@ -192,33 +229,64 @@ export function SegmentDetailsPage() {
         </div>
 
         {modules && modules.length > 0 ? (
-          <div className="divide-y divide-muted-100">
-            {modules.map((mod) => (
-              <ModuleRow
-                key={mod.id}
-                module={mod}
-                segmentId={id!}
-                expanded={expandedModules.has(mod.id)}
-                onToggle={() => toggleModule(mod.id)}
-                onEdit={() => {
-                  setEditingModule(mod);
-                  setModuleDrawerOpen(true);
-                }}
-                onDelete={() => setDeleteModuleTarget(mod)}
-                onAddLesson={() => {
-                  setActiveModuleId(mod.id);
-                  setEditingLesson(null);
-                  setLessonDrawerOpen(true);
-                }}
-                onEditLesson={(lesson) => {
-                  setActiveModuleId(mod.id);
-                  setEditingLesson(lesson);
-                  setLessonDrawerOpen(true);
-                }}
-                onDeleteLesson={(lesson) => setDeleteLessonTarget({ lesson, moduleId: mod.id })}
-              />
-            ))}
-          </div>
+          <>
+            <div className="divide-y divide-muted-100">
+              {modules.map((mod, index) => (
+                <ModuleRow
+                  key={mod.id}
+                  module={mod}
+                  segmentId={id!}
+                  expanded={expandedModules.has(mod.id)}
+                  onToggle={() => toggleModule(mod.id)}
+                  onEdit={() => {
+                    setEditingModule(mod);
+                    setModuleDrawerOpen(true);
+                  }}
+                  onDelete={() => setDeleteModuleTarget(mod)}
+                  onAddLesson={() => {
+                    setActiveModuleId(mod.id);
+                    setEditingLesson(null);
+                    setLessonDrawerOpen(true);
+                  }}
+                  onEditLesson={(lesson) => {
+                    setActiveModuleId(mod.id);
+                    setEditingLesson(lesson);
+                    setLessonDrawerOpen(true);
+                  }}
+                  onDeleteLesson={(lesson) => setDeleteLessonTarget({ lesson, moduleId: mod.id })}
+                  onMoveUp={() => handleReorderModule(index, 'up')}
+                  onMoveDown={() => handleReorderModule(index, 'down')}
+                  isFirst={index === 0}
+                  isLast={index === modules.length - 1}
+                />
+              ))}
+            </div>
+
+            {/* Module Pagination */}
+            {modulesData?.pagination && modulesData.pagination.totalPages > 1 && (
+              <div className="border-t border-muted-200 px-6 py-4 flex items-center justify-between">
+                <p className="text-helper text-muted-500">
+                  Page {modulesData.pagination.page} of {modulesData.pagination.totalPages}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setModulePage(p => Math.max(1, p - 1))}
+                    disabled={modulePage <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setModulePage(p => p + 1)}
+                    disabled={modulePage >= modulesData.pagination.totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="p-8 text-center">
             <BookOpen className="mx-auto h-10 w-10 text-muted-300" />
@@ -227,25 +295,95 @@ export function SegmentDetailsPage() {
         )}
       </div>
 
-      {/* Assigned Users Section */}
+      {/* Assigned Users & Segment Info - Two Column Layout */}
       {assignments && assignments.length > 0 && (
-        <div className="mt-6 rounded-xl border border-muted-200 bg-white shadow-sm">
-          <div className="border-b border-muted-200 px-6 py-4">
-            <h2 className="text-heading-card text-navy">Assigned Users</h2>
-          </div>
-          <div className="divide-y divide-muted-100">
-            {assignments.map((assignment) => (
-              <div key={assignment.id} className="flex items-center justify-between px-6 py-3">
-                <div>
-                  <p className="text-body font-medium text-navy">{assignment.name}</p>
-                  <p className="text-helper text-muted-500">{assignment.email}</p>
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+          {/* Left: Assigned Users */}
+          <div className="rounded-xl border border-muted-200 bg-white shadow-sm">
+            <div className="border-b border-muted-200 px-6 py-4">
+              <h2 className="text-base font-semibold text-navy">Assigned Users</h2>
+            </div>
+            <div className="divide-y divide-muted-100">
+              {assignments.map((assignment) => (
+                <div key={assignment.id} className="flex items-center justify-between px-6 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-navy">{assignment.name}</p>
+                    <p className="text-helper text-muted-500">{assignment.jobTitle || '—'}</p>
+                  </div>
+                  {/* TODO: Replace with real progress data from backend when available */}
+                  <div className="w-32">
+                    <div className="relative h-5 w-full rounded-full bg-muted-100 overflow-hidden">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-teal"
+                        style={{ width: '0%' }}
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-600">
+                        0%
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <StatusBadge
-                  variant={assignment.status === 'active' ? 'active' : 'deactivated'}
-                  label={assignment.status}
-                />
+              ))}
+            </div>
+
+            {/* Assignment Pagination */}
+            {assignmentsData?.pagination && assignmentsData.pagination.totalPages > 1 && (
+              <div className="border-t border-muted-200 px-6 py-4 flex items-center justify-between">
+                <p className="text-helper text-muted-500">
+                  Page {assignmentsData.pagination.page} of {assignmentsData.pagination.totalPages}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAssignmentPage(p => Math.max(1, p - 1))}
+                    disabled={assignmentPage <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setAssignmentPage(p => p + 1)}
+                    disabled={assignmentPage >= assignmentsData.pagination.totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Right: Segment Info */}
+          <div className="rounded-xl border border-muted-200 bg-white shadow-sm p-6 h-fit">
+            <h3 className="text-base font-semibold text-navy mb-4">Segment Info</h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-helper text-muted-500">Created</p>
+                <p className="text-sm font-medium text-navy">
+                  {new Date(segment.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-helper text-muted-500">Users Assigned</p>
+                <p className="text-sm font-medium text-navy">{assignments.length}</p>
+              </div>
+              <div>
+                <p className="text-helper text-muted-500 mb-1">Completion Rate</p>
+                {/* TODO: Replace with real average completion data from backend */}
+                <div className="relative h-5 w-full rounded-full bg-muted-100 overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-teal"
+                    style={{ width: '0%' }}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-600">
+                    0%
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -326,6 +464,10 @@ function ModuleRow({
   onAddLesson,
   onEditLesson,
   onDeleteLesson,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
 }: {
   module: ModuleWithLessonCount;
   segmentId: string;
@@ -336,10 +478,16 @@ function ModuleRow({
   onAddLesson: () => void;
   onEditLesson: (lesson: Lesson) => void;
   onDeleteLesson: (lesson: Lesson) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const moduleActions: ActionMenuItem[] = [
     { label: 'Edit', icon: <Edit size={16} />, onClick: onEdit },
     { label: 'Add Lesson', icon: <Plus size={16} />, onClick: onAddLesson },
+    { label: 'Move Up', icon: <GripVertical size={16} />, onClick: onMoveUp, disabled: isFirst },
+    { label: 'Move Down', icon: <GripVertical size={16} />, onClick: onMoveDown, disabled: isLast },
     { label: 'Delete', icon: <Trash2 size={16} />, onClick: onDelete, variant: 'danger' },
   ];
 
@@ -361,7 +509,7 @@ function ModuleRow({
           <div>
             <p className="text-body font-medium text-navy">{module.title}</p>
             <p className="text-helper text-muted-500">
-              {module.lessonCount} {module.lessonCount === 1 ? 'lesson' : 'lessons'} · Order #{module.sortOrder}
+              {module.lessonCount} {module.lessonCount === 1 ? 'lesson' : 'lessons'}
             </p>
           </div>
         </button>
@@ -394,7 +542,22 @@ function ModuleLessons({
   onDeleteLesson: (lesson: Lesson) => void;
   onAddLesson: () => void;
 }) {
-  const { data: lessons, isLoading } = useLessons(moduleId);
+  const [lessonPage, setLessonPage] = useState(1);
+  const { data: lessonsData, isLoading } = useLessons(moduleId, { page: lessonPage, limit: 10 });
+  const lessons = lessonsData?.data ?? [];
+  const reorderLessons = useReorderLessons();
+
+  function handleReorderLesson(currentIndex: number, direction: 'up' | 'down') {
+    if (!lessons || lessons.length < 2) return;
+    const newOrder = [...lessons];
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+    [newOrder[currentIndex], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[currentIndex]];
+    reorderLessons.mutate({
+      moduleId,
+      data: { orderedIds: newOrder.map((l) => l.id) },
+    });
+  }
 
   if (isLoading) {
     return (
@@ -404,58 +567,113 @@ function ModuleLessons({
     );
   }
 
-  if (!lessons || lessons.length === 0) {
-    return (
-      <div className="px-12 py-4 text-center">
-        <p className="text-helper text-muted-500">No lessons yet.</p>
+  return (
+    <div className="border-t border-muted-100 bg-muted-50 px-6 py-4">
+      {/* Add Lesson button at the top */}
+      <div className="ml-7 mb-3">
         <button
           onClick={onAddLesson}
-          className="mt-2 text-helper font-medium text-primary hover:text-primary/80 transition"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
         >
-          + Add first lesson
+          <Plus size={16} />
+          <span>Add Lesson</span>
         </button>
       </div>
-    );
-  }
 
-  return (
-    <div className="border-t border-muted-100 bg-muted-50 px-6 py-3">
-      <div className="ml-7 space-y-2">
-        {lessons.map((lesson) => (
-          <div
-            key={lesson.id}
-            className="flex items-center justify-between rounded-lg bg-white px-4 py-2.5 border border-muted-200"
-          >
-            <div className="flex items-center gap-3">
-              {lesson.contentType === 'text' ? (
-                <FileText size={16} className="text-teal" />
-              ) : (
-                <Video size={16} className="text-navy" />
-              )}
-              <div>
-                <p className="text-helper font-medium text-navy">{lesson.title}</p>
-                <StatusBadge variant={lesson.contentType} label={lesson.contentType} className="mt-0.5" />
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => onEditLesson(lesson)}
-                className="rounded p-1 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
-                aria-label="Edit lesson"
-              >
-                <Edit size={14} />
-              </button>
-              <button
-                onClick={() => onDeleteLesson(lesson)}
-                className="rounded p-1 text-muted-400 hover:text-danger hover:bg-danger-50 transition"
-                aria-label="Delete lesson"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
+      {/* Lesson list area */}
+      <div className="ml-7 rounded-lg bg-muted-100 border border-muted-200 p-3 min-h-[80px]">
+        {!lessons || lessons.length === 0 ? (
+          <div className="flex items-center justify-center py-4">
+            <p className="text-helper text-muted-500">Saved lessons will appear here</p>
           </div>
-        ))}
+        ) : (
+          <div className="space-y-2">
+            {lessons.map((lesson, index) => (
+              <div
+                key={lesson.id}
+                className="flex items-center justify-between rounded-lg bg-white px-4 py-2.5 border border-muted-200"
+              >
+                <div className="flex items-center gap-3">
+                  {lesson.contentType === 'text' ? (
+                    <FileText size={16} className="text-teal" />
+                  ) : (
+                    <Video size={16} className="text-navy" />
+                  )}
+                  <div>
+                    <p className="text-helper font-medium text-navy">{lesson.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <StatusBadge variant={lesson.contentType} label={lesson.contentType} />
+                      {lesson.estimatedTimeValue && lesson.estimatedTimeUnit && (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-500">
+                          <Clock size={12} />
+                          {(() => {
+                            const totalMinutes = lesson.estimatedTimeUnit === 'hours'
+                              ? lesson.estimatedTimeValue * 60
+                              : lesson.estimatedTimeValue;
+                            const h = Math.floor(totalMinutes / 60);
+                            const m = totalMinutes % 60;
+                            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                          })()}
+                        </span>
+                      )}
+
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleReorderLesson(index, 'up')}
+                    disabled={index === 0}
+                    className="rounded p-1 text-muted-400 hover:text-navy hover:bg-muted-100 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Move lesson up"
+                  >
+                    <GripVertical size={14} />
+                  </button>
+                  <button
+                    onClick={() => onEditLesson(lesson)}
+                    className="rounded p-1 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+                    aria-label="Edit lesson"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button
+                    onClick={() => onDeleteLesson(lesson)}
+                    className="rounded p-1 text-muted-400 hover:text-danger hover:bg-danger-50 transition"
+                    aria-label="Delete lesson"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Lesson Pagination */}
+      {lessonsData?.pagination && lessonsData.pagination.totalPages > 1 && (
+        <div className="ml-7 mt-3 flex items-center justify-between border-t border-muted-200 pt-2">
+          <p className="text-helper text-muted-500">
+            Page {lessonsData.pagination.page} of {lessonsData.pagination.totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setLessonPage(p => Math.max(1, p - 1))}
+              disabled={lessonPage <= 1}
+              className="px-2 py-1 rounded text-xs border border-muted-200 hover:bg-muted-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-muted-600"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setLessonPage(p => p + 1)}
+              disabled={lessonPage >= lessonsData.pagination.totalPages}
+              className="px-2 py-1 rounded text-xs border border-muted-200 hover:bg-muted-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-muted-600"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

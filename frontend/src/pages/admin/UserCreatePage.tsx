@@ -26,7 +26,8 @@ export function UserCreatePage() {
   const navigate = useNavigate();
   const createUserMutation = useCreateUser();
   const createAssignmentMutation = useCreateAssignment();
-  const { data: segments } = useSegments();
+  const { data: segmentsData } = useSegments();
+  const segments = segmentsData?.data ?? [];
 
   // Form state
   const [name, setName] = useState('');

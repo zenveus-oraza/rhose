@@ -16,12 +16,29 @@ interface LessonFormData {
   contentType: LessonContentType;
   contentBody: string;
   videoUrl: string;
+  estimatedTime: string; // hh:mm format
 }
 
 interface LessonFieldErrors {
   title?: string;
   contentBody?: string;
   videoUrl?: string;
+  estimatedTime?: string;
+}
+
+function minutesToHhmm(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function hhmmToMinutes(hhmm: string): number | null {
+  const match = hhmm.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  if (minutes >= 60) return null;
+  return hours * 60 + minutes;
 }
 
 export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerProps) {
@@ -34,19 +51,29 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     contentType: 'text',
     contentBody: '',
     videoUrl: '',
+    estimatedTime: '',
   });
   const [fieldErrors, setFieldErrors] = useState<LessonFieldErrors>({});
 
   useEffect(() => {
     if (lesson) {
+      let timeDisplay = '';
+      if (lesson.estimatedTimeValue != null) {
+        // Convert stored value to hh:mm (stored as minutes)
+        const totalMinutes = lesson.estimatedTimeUnit === 'hours'
+          ? lesson.estimatedTimeValue * 60
+          : lesson.estimatedTimeValue;
+        timeDisplay = minutesToHhmm(totalMinutes);
+      }
       setFormData({
         title: lesson.title,
         contentType: lesson.contentType,
         contentBody: lesson.contentBody || '',
         videoUrl: lesson.videoUrl || '',
+        estimatedTime: timeDisplay,
       });
     } else {
-      setFormData({ title: '', contentType: 'text', contentBody: '', videoUrl: '' });
+      setFormData({ title: '', contentType: 'text', contentBody: '', videoUrl: '', estimatedTime: '' });
     }
     setFieldErrors({});
   }, [lesson, open]);
@@ -74,6 +101,15 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
       }
     }
 
+    if (formData.estimatedTime.trim()) {
+      const minutes = hhmmToMinutes(formData.estimatedTime.trim());
+      if (minutes === null) {
+        errors.estimatedTime = 'Format must be hh:mm (e.g., 01:30)';
+      } else if (minutes <= 0) {
+        errors.estimatedTime = 'Time must be greater than 00:00';
+      }
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -88,6 +124,12 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
       ...(formData.contentType === 'text'
         ? { content_body: formData.contentBody.trim() }
         : { video_url: formData.videoUrl.trim() }),
+      ...(formData.estimatedTime.trim()
+        ? {
+            estimated_time_value: hhmmToMinutes(formData.estimatedTime.trim())!,
+            estimated_time_unit: 'minutes' as const,
+          }
+        : {}),
     };
 
     if (isEditing && lesson) {
@@ -222,6 +264,30 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
             )}
           </div>
         )}
+
+        {/* Estimated Time (always shown regardless of content type) */}
+        <div>
+          <label htmlFor="lesson-estimated-time" className="block text-helper font-medium text-navy mb-1.5">
+            Estimated Time (hh:mm)
+          </label>
+          <input
+            id="lesson-estimated-time"
+            type="text"
+            value={formData.estimatedTime}
+            onChange={(e) => {
+              setFormData({ ...formData, estimatedTime: e.target.value });
+              if (fieldErrors.estimatedTime) setFieldErrors((prev) => ({ ...prev, estimatedTime: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.estimatedTime}
+            className={`w-40 rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
+              fieldErrors.estimatedTime ? 'border-danger-400' : 'border-muted-300'
+            }`}
+            placeholder="hh:mm"
+          />
+          {fieldErrors.estimatedTime && (
+            <p className="mt-1 text-helper text-danger-600">{fieldErrors.estimatedTime}</p>
+          )}
+        </div>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-muted-200">

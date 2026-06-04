@@ -10,6 +10,8 @@ interface ProfileData {
   name: string;
   email: string;
   role: string;
+  jobTitle?: string;
+  phone?: string;
   profileImage?: string | null;
 }
 
@@ -21,6 +23,8 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
+  const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
   const [profileLoading, setProfileLoading] = useState(false);
 
   // Password tab state
@@ -60,6 +64,8 @@ export function ProfilePage() {
     if (isEditing) {
       setName(user?.name ?? '');
       setEmail(user?.email ?? '');
+      setJobTitle(user?.jobTitle ?? '');
+      setPhone(user?.phone ?? '');
       setIsEditing(false);
     } else {
       setIsEditing(true);
@@ -73,7 +79,7 @@ export function ProfilePage() {
     try {
       await apiClient<ProfileData>('/users/profile', {
         method: 'PATCH',
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, jobTitle, phone }),
       });
       toast('success', 'Profile updated successfully');
       setIsEditing(false);
@@ -140,6 +146,7 @@ export function ProfilePage() {
                 <img
                   src={avatarSrc}
                   alt={user?.name}
+                  loading="lazy"
                   className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-md"
                 />
               ) : (
@@ -157,9 +164,12 @@ export function ProfilePage() {
           }
         />
 
-        {/* Name + join date */}
+        {/* Name + job title + join date */}
         <div className="pb-1">
           <h2 className="text-heading-card text-navy">{user?.name}</h2>
+          {user?.jobTitle && (
+            <p className="text-helper text-primary font-medium">{user.jobTitle}</p>
+          )}
           {joinDate && (
             <p className="text-helper text-muted-500">Joined {joinDate}</p>
           )}
@@ -239,6 +249,46 @@ export function ProfilePage() {
                   <p className="rounded-lg border border-muted-200 bg-muted-50 px-4 py-2.5 text-body text-navy capitalize">
                     {user?.role}
                   </p>
+                </div>
+
+                {/* Phone field */}
+                <div>
+                  <label htmlFor="profile-phone" className="block text-helper font-medium text-navy mb-1">
+                    Phone
+                  </label>
+                  {isEditing ? (
+                    <input
+                      id="profile-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-muted-200 bg-muted-50 px-4 py-2.5 text-body text-navy">
+                      {user?.phone || '-'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Job Title field */}
+                <div>
+                  <label htmlFor="profile-job-title" className="block text-helper font-medium text-navy mb-1">
+                    Job Title
+                  </label>
+                  {isEditing ? (
+                    <input
+                      id="profile-job-title"
+                      type="text"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-muted-200 bg-muted-50 px-4 py-2.5 text-body text-navy">
+                      {user?.jobTitle || '-'}
+                    </p>
+                  )}
                 </div>
               </div>
 

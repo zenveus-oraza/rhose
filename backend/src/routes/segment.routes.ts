@@ -25,14 +25,21 @@ router.post(
 
 /**
  * GET /api/admin/segments
- * List all segments ordered by created_at descending.
+ * List segments with pagination and optional search/status filter.
+ * Query params: page, limit, search, status
  */
 router.get(
   '/',
-  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const segments = await segmentService.list();
-      sendSuccess(res, segments);
+      const { page, limit, search, status } = req.query;
+      const result = await segmentService.list({
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+        search: search as string | undefined,
+        status: (status as any) || undefined,
+      });
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }

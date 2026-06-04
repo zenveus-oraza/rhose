@@ -7,39 +7,67 @@ import { createSegmentSchema, updateSegmentSchema } from '../../schemas/segment.
  */
 describe('Segment Schemas', () => {
   describe('createSegmentSchema', () => {
-    it('should accept valid input with title only', () => {
-      const result = createSegmentSchema.safeParse({ title: 'My Segment' });
+    it('should accept valid input with title and duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'My Segment', duration: 30 });
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.title).toBe('My Segment');
+        expect(result.data.duration).toBe(30);
         expect(result.data.description).toBeUndefined();
       }
     });
 
-    it('should accept valid input with title and description', () => {
+    it('should accept valid input with title, description, and duration', () => {
       const result = createSegmentSchema.safeParse({
         title: 'My Segment',
         description: 'A description',
+        duration: 14,
       });
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.title).toBe('My Segment');
         expect(result.data.description).toBe('A description');
+        expect(result.data.duration).toBe(14);
       }
     });
 
     it('should reject missing title', () => {
-      const result = createSegmentSchema.safeParse({});
+      const result = createSegmentSchema.safeParse({ duration: 30 });
       expect(result.success).toBe(false);
     });
 
     it('should reject empty title', () => {
-      const result = createSegmentSchema.safeParse({ title: '' });
+      const result = createSegmentSchema.safeParse({ title: '', duration: 30 });
       expect(result.success).toBe(false);
     });
 
     it('should reject title exceeding 255 characters', () => {
-      const result = createSegmentSchema.safeParse({ title: 'a'.repeat(256) });
+      const result = createSegmentSchema.safeParse({ title: 'a'.repeat(256), duration: 30 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'Test' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject zero duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'Test', duration: 0 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject negative duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'Test', duration: -5 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-integer duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'Test', duration: 3.5 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-number duration', () => {
+      const result = createSegmentSchema.safeParse({ title: 'Test', duration: 'thirty' });
       expect(result.success).toBe(false);
     });
   });
@@ -53,6 +81,29 @@ describe('Segment Schemas', () => {
     it('should accept valid title update', () => {
       const result = updateSegmentSchema.safeParse({ title: 'Updated Title' });
       expect(result.success).toBe(true);
+    });
+
+    it('should accept valid duration update', () => {
+      const result = updateSegmentSchema.safeParse({ duration: 60 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.duration).toBe(60);
+      }
+    });
+
+    it('should reject invalid duration on update (zero)', () => {
+      const result = updateSegmentSchema.safeParse({ duration: 0 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid duration on update (negative)', () => {
+      const result = updateSegmentSchema.safeParse({ duration: -1 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-integer duration on update', () => {
+      const result = updateSegmentSchema.safeParse({ duration: 2.5 });
+      expect(result.success).toBe(false);
     });
 
     it('should accept valid status values', () => {

@@ -4,6 +4,7 @@ import { modules } from '../db/schema/modules.js';
 import { segments } from '../db/schema/segments.js';
 import { lessons } from '../db/schema/lessons.js';
 import { AppError } from '../utils/AppError.js';
+import type { PaginatedResult } from './user-management.service.js';
 
 /**
  * Module Service — handles all business logic for module CRUD and sort order management.
@@ -56,13 +57,29 @@ export const moduleService = {
   },
 
   /**
-   * List all modules for a segment ordered by sort_order ascending, with lesson count.
+   * List modules for a segment with pagination, ordered by sort_order ascending.
    * Throws 404 if the segment does not exist.
    */
-  async listBySegment(segmentId: string) {
+  async listBySegment(
+    segmentId: string,
+    params?: { page?: number; limit?: number }
+  ): Promise<PaginatedResult<any>> {
     // Verify parent segment exists
     await this.verifySegmentExists(segmentId);
 
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(modules)
+      .where(eq(modules.segmentId, segmentId));
+
+    const total = countResult?.count ?? 0;
+
+    // Get paginated results
     const result = await db
       .select({
         id: modules.id,
@@ -72,15 +89,23 @@ export const moduleService = {
         sortOrder: modules.sortOrder,
         createdAt: modules.createdAt,
         updatedAt: modules.updatedAt,
-        lessonCount: sql<number>`(
-          SELECT count(*)::int FROM lessons WHERE lessons.module_id = ${modules.id}
-        )`,
+        lessonCount: sql<number>`(SELECT count(*)::int FROM "lessons" WHERE "lessons"."module_id" = "modules"."id")`,
       })
       .from(modules)
       .where(eq(modules.segmentId, segmentId))
-      .orderBy(asc(modules.sortOrder));
+      .orderBy(asc(modules.sortOrder))
+      .limit(limit)
+      .offset(offset);
 
-    return result;
+    return {
+      data: result,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   /**

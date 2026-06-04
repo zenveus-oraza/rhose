@@ -2,7 +2,11 @@
 
 ## Introduction
 
-Milestone 4 implements basic multiple-choice quiz functionality and enhances progress tracking for the Rhose learning platform. Quizzes are non-blocking assessments that allow learners to test their understanding without gating progression. Admins create quiz questions with multiple options and a designated correct answer, and learners can take quizzes and view their results. Progress tracking is extended to include quiz attempt data alongside the existing lesson and module completion tracking from M3. This milestone builds on M1 (authentication, data models), M2 (admin content management), and M3 (lesson completion, sequential progression, progress tracking). Certificates, detailed scoring analytics, and email notifications are explicitly excluded.
+Milestone 4 implements basic multiple-choice quiz functionality and enhances progress tracking for the Rhose learning platform. Quizzes are non-blocking assessments that allow learners to test their understanding without gating progression. Admins create quiz questions with multiple options and a designated correct answer, and learners can take quizzes and view their results. Progress tracking is extended to include quiz attempt data alongside the existing lesson and module completion tracking from M3. This milestone builds on M1 (authentication, data models), M2 (admin content management), and M3 (lesson completion, sequential progression, progress tracking). 
+
+**IMPORTANT**: This milestone implements all requirements from M4 requirements.md AND follows all governance rules and cross-cutting concerns documented in `.kiro/steering/governance-and-cross-cutting-concerns.md`, including pagination for admin quiz lists, profile picture display with lazy loading, phone/job title fields in user displays, and admin editing capabilities.
+
+Certificates, detailed scoring analytics, and email notifications are explicitly excluded.
 
 ## Design References
 
@@ -206,3 +210,16 @@ Milestone 4 implements basic multiple-choice quiz functionality and enhances pro
 - Quiz results do not affect lesson completion or module progression under any circumstance.
 - Self-registration, SSO, MFA, CRM integrations, bulk imports, and role-based admin permissions are out of scope for the MVP.
 - Progress tracking enhancements in this milestone extend M3's existing progress infrastructure; they do not replace it.
+
+## Cross-Cutting Concerns & Governance
+
+**IMPORTANT**: This milestone implements in alignment with `.kiro/steering/governance-and-cross-cutting-concerns.md`, which establishes:
+
+- **Database Schema Governance** (Section 1): All schema changes must cascade through the stack (DB → Types → API → Frontend UI)
+- **User Profile Extensions** (Section 2): Phone, job title, and profile picture fields are handled consistently across all pages
+- **Pagination & Search** (Section 3): All admin lists (quizzes, users, segments) must have pagination; search/filter resets page to 1
+- **Profile Picture Display** (Section 6): All profile pictures must use lazy loading (`loading="lazy"` attribute)
+- **Role vs. Job Title Distinction** (Section 7): Clear visual hierarchy with role primary, job title secondary
+- **Admin Editing Capabilities** (Section 5): Admins can edit comprehensive user profile fields
+
+Refer to the governance document for implementation details and patterns.

@@ -2,7 +2,11 @@
 
 ## Introduction
 
-Milestone 5 completes the Rhose learning platform MVP by implementing automated email notification flows and ensuring final delivery readiness. This includes weekly segment-related email triggers sent to users during their active segment access period, monthly general email triggers sent after segment completion, integration of client-provided email templates, and comprehensive QA testing across all milestones (M1–M5) to produce a deployment-ready build. Email delivery uses Nodemailer as established in M1. CRM integrations and custom email design are explicitly excluded.
+Milestone 5 completes the Rhose learning platform MVP by implementing automated email notification flows and ensuring final delivery readiness. This includes weekly segment-related email triggers sent to users during their active segment access period, monthly general email triggers sent after segment completion, integration of client-provided email templates, and comprehensive QA testing across all milestones (M1–M5) to produce a deployment-ready build. Email delivery uses Nodemailer as established in M1. 
+
+**IMPORTANT**: This milestone implements all requirements from M5 requirements.md AND follows all governance rules and cross-cutting concerns documented in `.kiro/steering/governance-and-cross-cutting-concerns.md`, including pagination for user/segment lists in admin dashboard, profile picture display with lazy loading, phone/job title fields in user displays, and consistent admin editing capabilities across all pages.
+
+CRM integrations and custom email design are explicitly excluded.
 
 ## Design References
 
@@ -154,3 +158,15 @@ Milestone 5 completes the Rhose learning platform MVP by implementing automated 
 - SSO, MFA, analytics, certificates, bulk imports, and role-based admin permissions are out of scope for the MVP.
 - Admin UI for managing email schedules or templates is not in scope — configuration is via environment variables and filesystem.
 - Email content authoring or WYSIWYG editing is not in scope.
+## Cross-Cutting Concerns & Governance
+
+**IMPORTANT**: This milestone implements in alignment with `.kiro/steering/governance-and-cross-cutting-concerns.md`, which establishes:
+
+- **Database Schema Governance** (Section 1): All schema changes must cascade through the stack (DB → Types → API → Frontend UI)
+- **User Profile Extensions** (Section 2): Phone, job title, and profile picture fields are handled consistently across all pages
+- **Pagination & Search** (Section 3): All admin lists (users, segments, emails) must have pagination; search/filter resets page to 1
+- **Profile Picture Display** (Section 6): All profile pictures must use lazy loading (`loading="lazy"` attribute)
+- **Role vs. Job Title Distinction** (Section 7): Clear visual hierarchy with role primary, job title secondary
+- **Admin Editing Capabilities** (Section 5): Admins can edit comprehensive user profile fields
+
+Refer to the governance document for implementation details and patterns. In particular, email templates should reference user.phone and user.jobTitle when needed for personalization.

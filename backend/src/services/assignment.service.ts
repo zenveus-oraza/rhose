@@ -1,9 +1,10 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segmentAssignments } from '../db/schema/segment-assignments.js';
 import { users } from '../db/schema/users.js';
 import { segments } from '../db/schema/segments.js';
 import { AppError } from '../utils/AppError.js';
+import type { PaginatedResult } from './user-management.service.js';
 
 /**
  * Assignment Service — handles assigning and removing users from segments.
@@ -90,10 +91,14 @@ export const assignmentService = {
   },
 
   /**
-   * List users assigned to a specific segment.
+   * List users assigned to a specific segment with pagination.
    * Returns user profiles with assignment metadata.
+   * Ordered by assignedAt descending.
    */
-  async listBySegment(segmentId: string) {
+  async listBySegment(
+    segmentId: string,
+    params?: { page?: number; limit?: number }
+  ): Promise<PaginatedResult<any>> {
     // Verify segment exists
     const [segment] = await db
       .select({ id: segments.id })
@@ -105,12 +110,26 @@ export const assignmentService = {
       throw AppError.notFound('Segment not found');
     }
 
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(segmentAssignments)
+      .where(eq(segmentAssignments.segmentId, segmentId));
+
+    const total = countResult?.count ?? 0;
+
+    // Get paginated results
     const results = await db
       .select({
         id: segmentAssignments.id,
         userId: users.id,
         name: users.name,
         email: users.email,
+        jobTitle: users.jobTitle,
         role: users.role,
         status: users.status,
         assignedAt: segmentAssignments.assignedAt,
@@ -118,16 +137,31 @@ export const assignmentService = {
       })
       .from(segmentAssignments)
       .innerJoin(users, eq(segmentAssignments.userId, users.id))
-      .where(eq(segmentAssignments.segmentId, segmentId));
+      .where(eq(segmentAssignments.segmentId, segmentId))
+      .orderBy(desc(segmentAssignments.assignedAt))
+      .limit(limit)
+      .offset(offset);
 
-    return results;
+    return {
+      data: results,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   /**
-   * List segments assigned to a specific user.
+   * List segments assigned to a specific user with pagination.
    * Returns segment info with assignment metadata.
+   * Ordered by assignedAt descending.
    */
-  async listByUser(userId: string) {
+  async listByUser(
+    userId: string,
+    params?: { page?: number; limit?: number }
+  ): Promise<PaginatedResult<any>> {
     // Verify user exists
     const [user] = await db
       .select({ id: users.id })
@@ -139,6 +173,19 @@ export const assignmentService = {
       throw AppError.notFound('User not found');
     }
 
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(segmentAssignments)
+      .where(eq(segmentAssignments.userId, userId));
+
+    const total = countResult?.count ?? 0;
+
+    // Get paginated results
     const results = await db
       .select({
         id: segmentAssignments.id,
@@ -150,8 +197,19 @@ export const assignmentService = {
       })
       .from(segmentAssignments)
       .innerJoin(segments, eq(segmentAssignments.segmentId, segments.id))
-      .where(eq(segmentAssignments.userId, userId));
+      .where(eq(segmentAssignments.userId, userId))
+      .orderBy(desc(segmentAssignments.assignedAt))
+      .limit(limit)
+      .offset(offset);
 
-    return results;
+    return {
+      data: results,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 };

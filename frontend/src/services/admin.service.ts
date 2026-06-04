@@ -19,6 +19,7 @@ import type {
   ResetPasswordResponse,
   PaginatedResult,
   UserListParams,
+  SegmentListParams,
   Assignment,
   CreateAssignmentInput,
   SegmentAssignment,
@@ -41,8 +42,16 @@ export async function createSegment(data: CreateSegmentInput): Promise<Segment> 
   });
 }
 
-export async function listSegments(): Promise<Segment[]> {
-  return apiClient<Segment[]>('/admin/segments');
+export async function listSegments(params?: SegmentListParams): Promise<PaginatedResult<Segment>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.status) searchParams.set('status', params.status);
+
+  const query = searchParams.toString();
+  const endpoint = query ? `/admin/segments?${query}` : '/admin/segments';
+  return apiClient<PaginatedResult<Segment>>(endpoint);
 }
 
 export async function getSegment(id: string): Promise<SegmentWithModuleCount> {
@@ -71,8 +80,14 @@ export async function createModule(segmentId: string, data: CreateModuleInput): 
   });
 }
 
-export async function listModules(segmentId: string): Promise<ModuleWithLessonCount[]> {
-  return apiClient<ModuleWithLessonCount[]>(`/admin/segments/${segmentId}/modules`);
+export async function listModules(segmentId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<ModuleWithLessonCount>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const query = searchParams.toString();
+  const endpoint = query ? `/admin/segments/${segmentId}/modules?${query}` : `/admin/segments/${segmentId}/modules`;
+  return apiClient<PaginatedResult<ModuleWithLessonCount>>(endpoint);
 }
 
 export async function updateModule(id: string, data: UpdateModuleInput): Promise<Module> {
@@ -104,8 +119,14 @@ export async function createLesson(moduleId: string, data: CreateLessonInput): P
   });
 }
 
-export async function listLessons(moduleId: string): Promise<Lesson[]> {
-  return apiClient<Lesson[]>(`/admin/modules/${moduleId}/lessons`);
+export async function listLessons(moduleId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<Lesson>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const query = searchParams.toString();
+  const endpoint = query ? `/admin/modules/${moduleId}/lessons?${query}` : `/admin/modules/${moduleId}/lessons`;
+  return apiClient<PaginatedResult<Lesson>>(endpoint);
 }
 
 export async function getLesson(id: string): Promise<Lesson> {
@@ -186,10 +207,22 @@ export async function deleteAssignment(id: string): Promise<void> {
   });
 }
 
-export async function listSegmentAssignments(segmentId: string): Promise<SegmentAssignment[]> {
-  return apiClient<SegmentAssignment[]>(`/admin/segments/${segmentId}/assignments`);
+export async function listSegmentAssignments(segmentId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<SegmentAssignment>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const query = searchParams.toString();
+  const endpoint = query ? `/admin/segments/${segmentId}/assignments?${query}` : `/admin/segments/${segmentId}/assignments`;
+  return apiClient<PaginatedResult<SegmentAssignment>>(endpoint);
 }
 
-export async function listUserAssignments(userId: string): Promise<UserAssignment[]> {
-  return apiClient<UserAssignment[]>(`/admin/users/${userId}/assignments`);
+export async function listUserAssignments(userId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<UserAssignment>> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const query = searchParams.toString();
+  const endpoint = query ? `/admin/users/${userId}/assignments?${query}` : `/admin/users/${userId}/assignments`;
+  return apiClient<PaginatedResult<UserAssignment>>(endpoint);
 }

@@ -2,36 +2,52 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useSegment, useUpdateSegment } from '@/hooks/useAdminApi';
+import { useToast } from '@/components/ui/Toast';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
-import { SuccessModal } from '@/components/ui/SuccessModal';
 import type { SegmentStatus } from '@/types/admin';
+
+interface SegmentFormErrors {
+  title?: string;
+  duration?: string;
+}
 
 export function SegmentEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: segment, isLoading, error } = useSegment(id!);
   const updateSegment = useUpdateSegment();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [duration, setDuration] = useState('');
   const [status, setStatus] = useState<SegmentStatus>('draft');
-  const [fieldErrors, setFieldErrors] = useState<{ title?: string }>({});
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<SegmentFormErrors>({});
 
   useEffect(() => {
     if (segment) {
       setTitle(segment.title);
       setDescription(segment.description || '');
+      setDuration(segment.duration != null ? String(segment.duration) : '');
       setStatus(segment.status);
     }
   }, [segment]);
 
   function validate(): boolean {
-    const errors: { title?: string } = {};
+    const errors: SegmentFormErrors = {};
+
     if (!title.trim()) {
       errors.title = 'Title is required';
     }
+
+    const durationNum = Number(duration);
+    if (!duration.trim()) {
+      errors.duration = 'Duration is required';
+    } else if (!Number.isInteger(durationNum) || durationNum <= 0) {
+      errors.duration = 'Duration must be a positive integer';
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -46,10 +62,16 @@ export function SegmentEditPage() {
         data: {
           title: title.trim(),
           description: description.trim() || undefined,
+          duration: Number(duration),
           status,
         },
       },
-      { onSuccess: () => setShowSuccess(true) }
+      {
+        onSuccess: () => {
+          toast('success', 'Segment updated successfully');
+          navigate(`/admin/content/segments/${id}`);
+        },
+      }
     );
   }
 
@@ -95,6 +117,7 @@ export function SegmentEditPage() {
           <ErrorMessage message={updateSegment.error.message || 'Failed to update segment'} />
         )}
 
+        {/* Title */}
         <div>
           <label htmlFor="edit-title" className="block text-helper font-medium text-navy mb-1.5">
             Title <span className="text-danger">*</span>
@@ -105,18 +128,22 @@ export function SegmentEditPage() {
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
-              if (fieldErrors.title) setFieldErrors({});
+              if (fieldErrors.title) setFieldErrors((prev) => ({ ...prev, title: undefined }));
             }}
             aria-invalid={!!fieldErrors.title}
+            aria-describedby={fieldErrors.title ? 'edit-title-error' : undefined}
             className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
               fieldErrors.title ? 'border-danger-400' : 'border-muted-300'
             }`}
           />
           {fieldErrors.title && (
-            <p className="mt-1 text-helper text-danger-600">{fieldErrors.title}</p>
+            <p id="edit-title-error" className="mt-1 text-helper text-danger-600">
+              {fieldErrors.title}
+            </p>
           )}
         </div>
 
+        {/* Description */}
         <div>
           <label htmlFor="edit-description" className="block text-helper font-medium text-navy mb-1.5">
             Description
@@ -127,9 +154,40 @@ export function SegmentEditPage() {
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition resize-none"
+            placeholder="Enter a description for this segment (optional)"
           />
         </div>
 
+        {/* Duration */}
+        <div>
+          <label htmlFor="edit-duration" className="block text-helper font-medium text-navy mb-1.5">
+            Duration (days) <span className="text-danger">*</span>
+          </label>
+          <input
+            id="edit-duration"
+            type="number"
+            min="1"
+            step="1"
+            value={duration}
+            onChange={(e) => {
+              setDuration(e.target.value);
+              if (fieldErrors.duration) setFieldErrors((prev) => ({ ...prev, duration: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.duration}
+            aria-describedby={fieldErrors.duration ? 'edit-duration-error' : undefined}
+            className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
+              fieldErrors.duration ? 'border-danger-400' : 'border-muted-300'
+            }`}
+            placeholder="e.g. 30"
+          />
+          {fieldErrors.duration && (
+            <p id="edit-duration-error" className="mt-1 text-helper text-danger-600">
+              {fieldErrors.duration}
+            </p>
+          )}
+        </div>
+
+        {/* Status */}
         <div>
           <label htmlFor="edit-status" className="block text-helper font-medium text-navy mb-1.5">
             Status
@@ -153,6 +211,7 @@ export function SegmentEditPage() {
           )}
         </div>
 
+        {/* Actions */}
         <div className="flex items-center justify-end gap-3 pt-4">
           <button
             type="button"
@@ -170,21 +229,6 @@ export function SegmentEditPage() {
           </button>
         </div>
       </form>
-
-      <SuccessModal
-        open={showSuccess}
-        onClose={() => {
-          setShowSuccess(false);
-          navigate(`/admin/content/segments/${id}`);
-        }}
-        title="Segment Updated"
-        description="Your changes have been saved successfully."
-        actionLabel="View Segment"
-        onAction={() => {
-          setShowSuccess(false);
-          navigate(`/admin/content/segments/${id}`);
-        }}
-      />
     </div>
   );
 }

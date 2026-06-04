@@ -2,11 +2,11 @@
 
 ## Overview
 
-This design defines the implementation approach for Milestone 2: Admin Content Management. M2 enables admins to create and manage learning content (Segments, Modules, Lessons), manage user accounts, and assign users to segments through a dedicated admin interface built on the M1 foundation (authentication, data models, layout shell).
+This design defines the implementation approach for Milestone 2: Admin Content Management. M2 enables admins to fully create and manage the Segment → Module → Lesson content hierarchy, manage user accounts, and assign users to segments. Modules and Lessons are real admin-managed entities with full CRUD, not placeholders. The content created here feeds directly into M3 (learner lesson viewing) and M4 (quiz association).
 
 ### Purpose
 
-The design covers admin dashboard, content management (CRUD with status lifecycle), user management, and segment assignment — with the uploaded screenshot/Figma context converted into text so Kiro can use it even when image reading fails.
+The design covers admin dashboard, full content management (Segment with duration, Module inside Segment, Lesson inside Module with estimated time), user management, and segment assignment — matching the Figma content management flow.
 
 ### Relevant Tech Context
 
@@ -29,59 +29,67 @@ Relevant screenshot assets:
 - `.kiro/context/screenshots/STYLE.png`
 - `.kiro/context/screenshots/OVERLAY.png`
 
-### Screen and Flow Interpretation
+### Content Management Figma Flow (CRITICAL)
 
-M2 covers admin dashboard, content management, user management, and segment assignment.
+The Figma defines the following admin content creation flow. This is the authoritative UI pattern for M2:
 
-**Admin dashboard:**
-- Use existing `AdminLayout.tsx` which renders the sidebar with active `bg-primary text-white` state and bottom Settings/Logout.
-- Header includes greeting, Dashboard title.
-- Quick actions: Assign Segment, Create User, Add New Segment — use `<Button>` component.
-- Stats cards: Total Users, Active Segment, Total Modules, Total Lessons.
-- Segment Overview list uses status badges, progress bars, filter/status dropdown.
-- Use icons from `public/icon/`: `dashboard.png`, `group_add.png`, `assignment_add.png`, `add.png`, `filter_list.png`.
-- Recent Activity panel is a lightweight UI pattern only; do not turn it into advanced analytics.
+**1. Segment List Page:**
+- Table/list showing all segments with status badges, dates, counts
+- Row action menu: Edit, Archive Segment
+- "Create Segment" button at top
 
-**Content management:**
-- Use table/list view with row action menu.
-- Use icons: `content_mang.png`, `folder_open.png`, `layers.png`, `edit.png`, `add.png`, `close.png`.
-- Create Segment uses a stepper/wizard with segment info, modules, lessons, quiz/questions, and review/details.
-- Add Module, Add Lesson, and Add Question use right-side drawer/panel patterns.
-- Segment Details summarizes info, modules/lessons/quiz, assigned users, and progress.
+**2. Segment Creation Wizard (multi-step):**
+The segment creation follows a phase-wise wizard with 4 steps:
+- **Step 1 — Segment Info:** Title (required), Description (optional), Duration in days (required, positive integer). Creates the segment via API on submission.
+- **Step 2 — Modules:** Add/manage modules within the newly created segment. Each module expands to show its lessons inline. Lessons are added ONLY inside modules (no separate lesson section). Uses Add Module button (right-side panel/drawer) and Add Lesson button (inside each module).
+- **Step 3 — Quiz:** Placeholder for M4. Shows "Quiz creation and management will be available in a future update."
+- **Step 4 — Overview:** Summary of the segment (title, description, duration, status, module count, total lessons). "Finish" button navigates to segment detail page.
 
-**User management:**
-- User list has search (`search.png` icon), filter dropdown (`filter_list.png`), columns for role/job title, assigned segment, progress, status, and actions.
-- Row actions: View Profile, Assign Segment, Reset Password, Deactivate User.
-- Use icons: `profile.png`, `group_add.png`, `edit.png`.
-- Create User form includes user info, role/job-title dropdown, segment assignment, invite email action, and success modal.
-- User Profile admin view includes user details, segment assignment, progress, activity log, quick actions, and account details.
+Step indicator at the top shows progress. Steps are navigable after Step 1 completes.
 
-**Assign Training:**
-- Includes segment selector, selectable users list, selected users panel, notification toggle, duration/date fields, and success modal.
-- Use icons: `assignment_add.png`, `check_box_fill.png`, `checkbox_Empty.png`, `calendar_clock.png`.
+**3. Segment Detail / Content Management Screen (for existing segments):**
+- Segment info displayed in header area (title, status badge, description, duration)
+- Summary cards: Modules count, Total Lessons count, Assigned Users count
+- Primary "Add Module" button with left icon, matching Figma styling
+- List of existing Modules with lesson counts, sort order, and actions (edit, add lessons, reorder, delete)
+- Modules expand to show lessons inline (no separate lesson page)
+- Assigned Users section with pagination
 
-### UI Implementation Instructions To Kiro
+**4. Module Panel (right-side drawer):**
+- When admin clicks "Add Module", a right-side drawer appears
+- Module drawer includes:
+  - Module name/title input (required)
+  - Description input (optional)
+  - Save/Cancel actions
+- Module belongs to a Segment through segment_id
+- Module has sort_order for learner sequencing
+- Lessons are managed inside each module (no separate lesson section exists)
 
-- Keep the UI consistent with `.kiro/steering/design-clarifications.md`, `.kiro/context/screenshot-catalog.md`, `STYLE.png`, and `OVERLAY.png`.
-- Use shadcn/ui primitives where they match the screenshots, but centralize variants in shared components (e.g., `Button.tsx`) instead of scattering one-off Tailwind classes.
-- **Global 12px padding** is applied at the App root level (`p-[12px]`). All layout content sits within this inset.
-- **Sidebar styling**: `bg-[#F8FAFC]`, `rounded-2xl`, `border border-muted-200`. Logo centered in header. Dividers use `mx-4 border-b border-muted-200` (shorter on each side). Active nav items use `bg-primary text-white font-medium`.
-- **Button colors**: Primary buttons use `bg-primary` (#75D8D5) with white text. Active/selected states use `bg-active` (#0F172A).
-- **Icons**: Use real PNG icons from `public/icon/` folder (e.g., `logout.png`, `settings.png`, `content_mang.png`, `dashboard.png`, `search.png`, `filter_list.png`, `add.png`, `edit.png`, `close.png`, `check_circle.png`, `folder_open.png`, `layers.png`, `group_add.png`, `assignment_add.png`).
-- **Error handling**: Use toast notifications (via `useToast()`) for API errors. Do not use inline flickering error divs.
-- **Reusable Button component**: `src/components/ui/Button.tsx` — use `<Button variant="primary">` for actions.
-- **Nav footer**: Admin has Settings + Logout (no user name). Learner has Logout only.
-- **Project name**: Internal reference is `cmc-oral`, not "Rhose".
-- Do not invent missing flows. If the SOW requires something not shown in screenshots, implement safe structure and mark the missing UI state as a gap.
-- Treat screenshots as UI/UX references, not automatic scope additions.
+**5. Lesson Management (inside Module panel):**
+- "Add Lesson" button at the top of the module panel, matching Figma styling
+- Below the button: grey/empty lesson list area
+- Empty state text: "Saved lessons will appear here"
+- When admin clicks "Add Lesson", lesson fields appear:
+  - Lesson title
+  - Lesson type selector (text / video)
+  - Content upload/input area depending on lesson type
+  - Estimated time value (number input)
+  - Estimated time unit selector (minutes / hours)
+  - Content details for the selected lesson type
+- Lessons always exist within a Module context — never standalone
+
+**6. Lesson Type Handling:**
+- Text: Shows rich text / content_body input area
+- Video: Shows video_url input for external links
+- Upload/content input: UI supports upload/content input now; storage/upload implementation must follow final backend decision
+- Quiz fields are NOT in M2 — quiz remains M4
 
 ### Milestone UI/Figma Gaps and Clarifications
 
-- Screenshot role/job-title values must not be implemented as role-based admin permissions. Treat them as user profile metadata unless client confirms otherwise.
-- Recent Activity is visible in the dashboard, but advanced analytics are out of scope. Use only simple operational/activity events if already available or mark as pending.
-- Exact content wizard step names and required fields should follow final Figma labels. If not clear, use safe labels: Segment Info, Modules, Lessons, Quiz, Review.
-- Bulk import is not shown and remains out of scope.
-- Deactivate/archive destructive confirmations should follow overlay destructive action styling; exact modal copy may need confirmation.
+- Duration is part of the segment form per Figma. It is stored as `duration` (integer, days) on the segment model.
+- Assignment-specific `access_duration_days` on the assignment model is separate and used by M3 for per-user access windows.
+- Exact upload behavior for lessons not finalized — UI provides the input; backend storage follows final decision.
+- Screenshots show quiz steps in the wizard — these are NOT implemented in M2. Quiz creation remains M4.
 
 ## Architecture
 
@@ -96,6 +104,13 @@ graph TD
         A --> C[Content Management Pages]
         A --> D[User Management Pages]
         A --> E[Assignment Pages]
+    end
+
+    subgraph "Content Management Detail"
+        C --> C1[Segment List Page]
+        C --> C2[Segment Detail Page]
+        C2 --> C3[Module Panel - Right Side]
+        C3 --> C4[Lesson Form - Inside Module]
     end
 
     subgraph Backend
@@ -116,8 +131,25 @@ graph TD
         R[(PostgreSQL)]
     end
 
-    B & C & D & E -->|REST API| F
+    B & C1 & C2 & D & E -->|REST API| F
     M & N & O & P & Q -->|Drizzle ORM| R
+```
+
+### Content Hierarchy Data Flow
+
+```
+Admin creates Segment (title, description, duration)
+  └── Admin enters Segment Detail view
+       └── Admin clicks "Add Module" → right-side panel opens
+            └── Admin enters Module title → saves
+                 └── Module appears in Segment context
+                      └── Admin clicks "Add Lesson" inside Module
+                           └── Lesson form appears (title, type, content, estimated time)
+                                └── Admin saves → Lesson appears in Module's lesson list
+
+Data structure ready for:
+  - M3: Learner can view Segment → Module → Lesson content
+  - M4: Quiz can be associated to Modules/Lessons
 ```
 
 ### API Structure
@@ -130,36 +162,12 @@ Request flow: `Client → Auth Middleware → Admin Guard → Controller → Ser
 
 ### Backend Design Notes
 
-- Admin APIs must enforce admin-only access.
-- Content hierarchy must preserve ordering: segment → module → lesson.
-- Lesson content supports text and external video links.
-- Segment assignment must store duration/access window fields needed for M3.
-- User creation should support invite/password setup/reset flow through Nodemailer/reset-token pattern.
-- Do not implement role-based admin permissions in this milestone.
-
-### API Design Rules
-
-- Use Express route modules by feature.
-- Validate request bodies and params with Zod.
-- Enforce authentication on protected routes.
-- Enforce admin access on admin routes.
-- Enforce learner assignment and segment access checks on learner routes.
-- Use consistent response shapes and error codes.
-- Keep controllers thin and business logic in services.
-
-### Frontend Design Rules
-
-- Use shared service/API client hooks for data access.
-- Use the existing `AdminLayout.tsx` shell — do NOT create a separate AdminSidebar component.
-- Use the reusable `<Button>` component (`src/components/ui/Button.tsx`) for all action buttons.
-- Use toast notifications (`useToast()` from `src/components/ui/Toast.tsx`) for API success/error feedback.
-- Use real PNG icons from `public/icon/` instead of lucide-react where matching icons exist.
-- Active nav items: `bg-primary text-white font-medium`. Inactive: `text-muted-600 hover:bg-muted-100`.
-- Sidebar: `bg-[#F8FAFC]`, `rounded-2xl`, `border border-muted-200`. Dividers: `mx-4 border-b border-muted-200`.
-- Keep loading, empty, disabled, and error states visually consistent.
-- Mobile screens must be intentionally designed as stacked cards/drawers, not compressed desktop tables.
-- All destructive actions show a confirmation dialog before execution.
-- Status badges use: draft → muted, active → success/primary, archived → warning.
+- Segment includes duration field (integer, days) — stored on the segment model
+- Module sort_order is auto-assigned and maintained contiguously
+- Lesson includes estimated_time_value (integer) and estimated_time_unit (enum: "minutes" | "hours")
+- Lesson content_type supports "text" and "video" with conditional required fields
+- Content hierarchy enforces: Segment → Module → Lesson through foreign keys
+- No quiz fields in M2 — quiz belongs to M4
 
 ## Components and Interfaces
 
@@ -168,20 +176,20 @@ Request flow: `Client → Auth Middleware → Admin Guard → Controller → Ser
 | Method | Endpoint | Description | Request Body |
 |--------|----------|-------------|--------------|
 | GET | `/api/admin/dashboard/stats` | Dashboard statistics | — |
-| POST | `/api/admin/segments` | Create segment | `{ title, description? }` |
+| POST | `/api/admin/segments` | Create segment | `{ title, description?, duration }` |
 | GET | `/api/admin/segments` | List all segments | — |
 | GET | `/api/admin/segments/:id` | Get segment with module count | — |
-| PUT | `/api/admin/segments/:id` | Update segment | `{ title?, description?, status? }` |
+| PUT | `/api/admin/segments/:id` | Update segment | `{ title?, description?, duration?, status? }` |
 | DELETE | `/api/admin/segments/:id` | Delete segment (no children) | — |
-| POST | `/api/admin/segments/:segmentId/modules` | Create module | `{ title, description? }` |
+| POST | `/api/admin/segments/:segmentId/modules` | Create module | `{ title }` |
 | GET | `/api/admin/segments/:segmentId/modules` | List modules in segment | — |
-| PUT | `/api/admin/modules/:id` | Update module | `{ title?, description? }` |
+| PUT | `/api/admin/modules/:id` | Update module | `{ title? }` |
 | PUT | `/api/admin/segments/:segmentId/modules/reorder` | Reorder modules | `{ orderedIds: string[] }` |
 | DELETE | `/api/admin/modules/:id` | Delete module (no children) | — |
-| POST | `/api/admin/modules/:moduleId/lessons` | Create lesson | `{ title, content_type, content_body?, video_url? }` |
+| POST | `/api/admin/modules/:moduleId/lessons` | Create lesson | `{ title, content_type, content_body?, video_url?, estimated_time_value?, estimated_time_unit? }` |
 | GET | `/api/admin/modules/:moduleId/lessons` | List lessons in module | — |
 | GET | `/api/admin/lessons/:id` | Get lesson with full content | — |
-| PUT | `/api/admin/lessons/:id` | Update lesson | `{ title?, content_type?, content_body?, video_url? }` |
+| PUT | `/api/admin/lessons/:id` | Update lesson | `{ title?, content_type?, content_body?, video_url?, estimated_time_value?, estimated_time_unit? }` |
 | PUT | `/api/admin/modules/:moduleId/lessons/reorder` | Reorder lessons | `{ orderedIds: string[] }` |
 | DELETE | `/api/admin/lessons/:id` | Delete lesson | — |
 | POST | `/api/admin/users` | Create user | `{ name, email, role }` |
@@ -189,7 +197,7 @@ Request flow: `Client → Auth Middleware → Admin Guard → Controller → Ser
 | PUT | `/api/admin/users/:id` | Update user | `{ name?, role? }` |
 | PUT | `/api/admin/users/:id/deactivate` | Deactivate user | — |
 | POST | `/api/admin/users/:id/reset-password` | Reset password | — |
-| POST | `/api/admin/assignments` | Assign user to segment | `{ user_id, segment_id }` |
+| POST | `/api/admin/assignments` | Assign user to segment | `{ user_id, segment_id, access_duration_days? }` |
 | DELETE | `/api/admin/assignments/:id` | Remove assignment | — |
 | GET | `/api/admin/segments/:segmentId/assignments` | List users assigned to segment | — |
 | GET | `/api/admin/users/:userId/assignments` | List segments assigned to user | — |
@@ -199,26 +207,33 @@ Request flow: `Client → Auth Middleware → Admin Guard → Controller → Ser
 ```typescript
 // Segment Service
 interface SegmentService {
-  create(data: { title: string; description?: string }): Promise<Segment>;
-  list(): Promise<Segment[]>;
+  create(data: { title: string; description?: string; duration: number }): Promise<Segment>;
+  list(params?: { page?: number; limit?: number; search?: string; status?: string }): Promise<PaginatedResult<Segment>>;
   getById(id: string): Promise<Segment & { moduleCount: number }>;
-  update(id: string, data: Partial<SegmentUpdate>): Promise<Segment>;
+  update(id: string, data: Partial<{ title: string; description: string; duration: number; status: SegmentStatus }>): Promise<Segment>;
   delete(id: string): Promise<void>;
-  transitionStatus(id: string, newStatus: SegmentStatus): Promise<Segment>;
 }
 
 // Module Service
 interface ModuleService {
-  create(data: { title: string; description?: string; segmentId: string }): Promise<Module>;
-  listBySegment(segmentId: string): Promise<Module[]>;
-  update(id: string, data: Partial<ModuleUpdate>): Promise<Module>;
+  create(data: { title: string; segmentId: string }): Promise<Module>;
+  listBySegment(segmentId: string): Promise<(Module & { lessonCount: number })[]>;
+  update(id: string, data: Partial<{ title: string }>): Promise<Module>;
   reorder(segmentId: string, orderedIds: string[]): Promise<void>;
   delete(id: string): Promise<void>;
 }
 
 // Lesson Service
 interface LessonService {
-  create(data: LessonCreateInput): Promise<Lesson>;
+  create(data: {
+    title: string;
+    moduleId: string;
+    contentType: 'text' | 'video';
+    contentBody?: string;
+    videoUrl?: string;
+    estimatedTimeValue?: number;
+    estimatedTimeUnit?: 'minutes' | 'hours';
+  }): Promise<Lesson>;
   listByModule(moduleId: string): Promise<Lesson[]>;
   getById(id: string): Promise<Lesson>;
   update(id: string, data: Partial<LessonUpdate>): Promise<Lesson>;
@@ -237,160 +252,136 @@ interface UserManagementService {
 
 // Assignment Service
 interface AssignmentService {
-  assign(data: { userId: string; segmentId: string }): Promise<Assignment>;
+  assign(data: { userId: string; segmentId: string; accessDurationDays?: number }): Promise<Assignment>;
   remove(id: string): Promise<void>;
-  listBySegment(segmentId: string): Promise<UserProfile[]>;
-  listByUser(userId: string): Promise<Segment[]>;
+  listBySegment(segmentId: string): Promise<PaginatedResult<SegmentAssignment>>;
+  listByUser(userId: string): Promise<PaginatedResult<UserAssignment>>;
 }
 ```
 
-### Frontend Components
+### Frontend Components (Figma Flow)
 
 **Layout:**
-- `AdminLayout` — existing component with sidebar (bg-[#F8FAFC], rounded-2xl, border), logo, nav with active primary state, Settings + Logout footer. Already implements responsive behavior with mobile overlay.
+- `AdminLayout` — existing component with sidebar, nav, footer
 
 **Dashboard:**
-- `DashboardPage` — stats cards, quick actions, segment overview, recent activity
-- `StatsCard` — reusable stat display (icon from `public/icon/`, label, count)
-- `SegmentOverviewList` — segment rows with status badges and progress bars
+- `DashboardPage` — stats cards, quick actions, segment overview
 
-**Content Management:**
-- `SegmentListPage` — table/list with row actions (uses `ActionMenu`)
-- `SegmentCreateWizard` — stepper form (Segment Info → Modules → Lessons → Quiz → Review)
-- `ModuleDrawer` — right-side panel for add/edit module
-- `LessonDrawer` — right-side panel for add/edit lesson
-- `SegmentDetailsPage` — summary view with modules, lessons, assigned users
+**Content Management (Figma-driven hierarchy):**
+- `SegmentListPage` — table/list with status badges, duration, module count, row actions
+- `SegmentDetailPage` — main content area showing segment info + module management
+  - Left/main area: Segment form fields (title, description, duration, status)
+  - "Add Module" button with left icon (primary styling)
+  - Module list within segment context
+- `ModulePanel` — right-side panel that appears when "Add Module" is clicked
+  - Module title input
+  - Save/Cancel actions
+  - After creation: shows module detail with lesson management
+- `LessonForm` — appears inside Module panel when "Add Lesson" is clicked
+  - Title input
+  - Lesson type selector (text/video)
+  - Content input area (conditional on type)
+  - Estimated time value + unit selector (minutes/hours)
+  - Save/Cancel actions
+- `LessonList` — inside Module panel
+  - Grey container area
+  - Empty state: "Saved lessons will appear here"
+  - Populated: lesson cards with title, type badge, estimated time, actions
+
+**IMPORTANT: No disconnected "Modules Page" or "Lessons Page". All module/lesson management happens within Segment detail context.**
 
 **User Management:**
 - `UserListPage` — searchable table with filters and row actions
-- `UserCreateForm` — form with role dropdown, segment assignment, invite action
-- `UserProfilePage` — admin view of user details, assignments, activity
+- `UserCreateForm` — form with role dropdown, segment assignment
+- `UserProfilePage` — admin view of user details, assignments
 
 **Assignment:**
-- `AssignTrainingPage` — segment selector, user checklist, duration fields, success modal
+- `AssignTrainingPage` — segment selector, user checklist, duration/date fields
 
-**Shared (already built in M1, reuse):**
-- `Button` — `src/components/ui/Button.tsx` (primary/secondary/outline variants)
-- `Toast` — `src/components/ui/Toast.tsx` (success/error/info notifications)
-- `ProfileImageUpload` — `src/components/ui/ProfileImageUpload.tsx` (drag & drop image dialog)
-- `ConfirmationDialog` — destructive action confirmation (overlay styling)
+**Shared (reuse from M1):**
+- `Button` — primary/secondary/outline variants
+- `Toast` — success/error/info notifications
+- `ConfirmationDialog` — destructive action confirmation
 - `SuccessModal` — centered green check, title, action button
 - `ActionMenu` — row-level dropdown actions
 - `StatusBadge` — draft/active/archived/deactivated badges
-- `LoadingIndicator` — consistent loading state (spinner)
+- `LoadingIndicator` — consistent loading state
 
 ## Data Models
 
-### Existing Tables (from M1, extended as needed)
+### Segments Table (with Duration)
 
 ```typescript
-// users table — extended with job_title and profile_image metadata
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 255 }).notNull(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  role: varchar('role', { length: 20 }).notNull().default('learner'), // 'admin' | 'learner'
-  jobTitle: varchar('job_title', { length: 255 }),
-  profileImage: text('profile_image'), // base64 or URL, unlimited length
-  status: varchar('status', { length: 20 }).notNull().default('active'), // 'active' | 'deactivated'
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
-
-// segments table
 export const segments = pgTable('segments', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: varchar('title', { length: 255 }).notNull(),
   description: text('description'),
-  status: varchar('status', { length: 20 }).notNull().default('draft'), // 'draft' | 'active' | 'archived'
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
-
-// modules table
-export const modules = pgTable('modules', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  title: varchar('title', { length: 255 }).notNull(),
-  description: text('description'),
-  segmentId: uuid('segment_id').notNull().references(() => segments.id, { onDelete: 'restrict' }),
-  sortOrder: integer('sort_order').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
-
-// lessons table
-export const lessons = pgTable('lessons', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  title: varchar('title', { length: 255 }).notNull(),
-  contentType: varchar('content_type', { length: 20 }).notNull(), // 'text' | 'video'
-  contentBody: text('content_body'), // required when content_type = 'text'
-  videoUrl: varchar('video_url', { length: 2048 }), // required when content_type = 'video'
-  moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'restrict' }),
-  sortOrder: integer('sort_order').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  duration: integer('duration'), // Duration in days, per Figma segment form
+  status: segmentStatusEnum('status').notNull().default('draft'), // 'draft' | 'active' | 'archived'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 ```
 
-### New Table for M2: Segment Assignments
+### Modules Table
 
 ```typescript
-// segment_assignments table
+export const modules = pgTable('modules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  segmentId: uuid('segment_id').notNull().references(() => segments.id, { onDelete: 'restrict' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+```
+
+### Lessons Table (with Estimated Time)
+
+```typescript
+export const lessons = pgTable('lessons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'restrict' }),
+  title: varchar('title', { length: 255 }).notNull(),
+  contentType: lessonContentTypeEnum('content_type').notNull(), // 'text' | 'video'
+  contentBody: text('content_body'), // required when content_type = 'text'
+  videoUrl: varchar('video_url', { length: 2048 }), // required when content_type = 'video'
+  estimatedTimeValue: integer('estimated_time_value'), // e.g., 15, 30, 1, 2
+  estimatedTimeUnit: varchar('estimated_time_unit', { length: 10 }), // 'minutes' | 'hours'
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+```
+
+### Segment Assignments Table
+
+```typescript
 export const segmentAssignments = pgTable('segment_assignments', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
   segmentId: uuid('segment_id').notNull().references(() => segments.id, { onDelete: 'restrict' }),
-  accessDurationDays: integer('access_duration_days'), // nullable, used by M3 for access window
+  accessDurationDays: integer('access_duration_days'), // assignment-specific, used by M3
   assignedAt: timestamp('assigned_at').defaultNow().notNull(),
 }, (table) => ({
   uniqueAssignment: unique().on(table.userId, table.segmentId),
 }));
 ```
 
-### Password Reset Tokens
-
-```typescript
-// password_reset_tokens table
-export const passwordResetTokens = pgTable('password_reset_tokens', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: varchar('token', { length: 255 }).notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-  usedAt: timestamp('used_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
-```
-
 ### Data Model Notes
 
-Kiro should update or create Drizzle schema definitions only where required by this milestone.
-
-General entities that may be involved:
-- users
-- password reset tokens
-- segments
-- modules
-- lessons
-- segment assignments
-- lesson progress
-- quizzes
-- quiz questions
-- quiz options
-- quiz responses
-- email schedules/logs
-
-Only add tables needed for this milestone. Do not overbuild future milestone models unless required as a dependency.
+- `segments.duration` is the Figma-specified segment duration field. Separate from `segment_assignments.access_duration_days`.
+- `lessons.estimated_time_value` + `lessons.estimated_time_unit` store the time estimate per the Figma lesson form.
+- `modules` no longer has a `description` field (simplified per Figma — module only needs title). If description was already in schema, it can remain but is not required in the UI.
+- No quiz-related tables in M2.
 
 ## Correctness Properties
 
-*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
-
 ### Property 1: Segment Status Transition Validity
 
-*For any* Segment and any attempted status transition, the transition SHALL succeed if and only if it follows the valid state machine: draft→active, draft→archived, active→archived. All transitions from "archived" SHALL be rejected. After any valid transition, the status field SHALL be exactly one of "draft", "active", or "archived", and the updated_at timestamp SHALL be updated.
+*For any* Segment and any attempted status transition, the transition SHALL succeed if and only if it follows the valid state machine: draft→active, draft→archived, active→archived. All transitions from "archived" SHALL be rejected.
 
-**Validates: Requirements 2.7, 2.8, 2.9, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7**
+**Validates: Requirements 2.8, 2.9, 2.10, 9.1–9.7**
 
 ### Property 2: Module Sort Order Contiguity Invariant
 
@@ -416,35 +407,27 @@ Only add tables needed for this milestone. Do not overbuild future milestone mod
 
 **Validates: Requirements 6.5, 6.10**
 
-### Property 6: Update Persistence Round-Trip
+### Property 6: Segment Duration Persistence
 
-*For any* valid update to a Segment, Module, Lesson, or User, applying the update and then fetching the entity by ID SHALL return the updated field values, and the updated_at timestamp SHALL be greater than or equal to the previous value.
+*For any* valid segment creation or update with a duration value, fetching the segment SHALL return the persisted duration value exactly as stored.
 
-**Validates: Requirements 2.6, 3.5, 4.9, 5.7**
+**Validates: Requirements 2.1, 2.5, 2.7**
 
-### Property 7: Password Hash Never Exposed
+### Property 7: Lesson Estimated Time Persistence
 
-*For any* API response from any user-related endpoint (create, list, get, update, deactivate, reset-password), the response body SHALL never contain a password hash field.
+*For any* valid lesson creation or update with estimated_time_value and estimated_time_unit, fetching the lesson SHALL return both fields exactly as stored.
+
+**Validates: Requirements 4.1, 4.2, 4.8, 4.15**
+
+### Property 8: Password Hash Never Exposed
+
+*For any* API response from any user-related endpoint, the response body SHALL never contain a password hash field.
 
 **Validates: Requirements 5.1, 5.11**
-
-### Property 8: User Search Returns Matching Results
-
-*For any* search query string that is a case-insensitive substring of a user's name or email, that user SHALL appear in the filtered user list results.
-
-**Validates: Requirements 5.6**
-
-### Property 9: User Deactivation Sets Correct Status
-
-*For any* active user, deactivating the user SHALL set the status to "deactivated" and update the updated_at timestamp.
-
-**Validates: Requirements 5.8**
 
 ## Error Handling
 
 ### API Error Response Shape
-
-All API errors use a consistent response format:
 
 ```typescript
 interface ApiErrorResponse {
@@ -460,121 +443,59 @@ interface ApiErrorResponse {
 
 | HTTP Status | Error Code | Scenario |
 |-------------|-----------|----------|
-| 400 | `VALIDATION_ERROR` | Missing/invalid fields (Zod validation failure) |
+| 400 | `VALIDATION_ERROR` | Missing/invalid fields (title, duration, estimated_time) |
 | 400 | `INVALID_STATUS_TRANSITION` | Archived segment cannot change status |
 | 400 | `HAS_CHILDREN` | Cannot delete segment with modules or module with lessons |
 | 401 | `UNAUTHORIZED` | Missing or invalid JWT token |
 | 403 | `FORBIDDEN` | Non-admin accessing admin endpoints |
 | 404 | `NOT_FOUND` | Entity does not exist |
 | 409 | `CONFLICT` | Duplicate email or duplicate assignment |
-| 500 | `INTERNAL_ERROR` | Unexpected server error (no details leaked) |
-
-### Admin-Specific Error Handling
-
-- **Status transition errors**: Return the current status and list of valid transitions in the error response to help the admin understand what actions are available.
-- **Referential integrity errors**: When deletion is blocked due to children, return the count of blocking children so the admin knows what to clean up first.
-- **Validation errors**: Return field-specific errors matching the Zod schema structure so the frontend can display inline field errors.
-- **Duplicate assignment**: Return the existing assignment's `assigned_at` date so the admin knows the assignment already exists.
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
 
 ### Frontend Error Display
 
-- API errors are displayed as **toast notifications** via `useToast()` hook (bottom-right, auto-dismiss after 4s).
-- Toast types: `success` (green), `error` (red), `info` (neutral).
-- Technical details (stack traces, internal codes) are never shown to the user.
-- Loading states use consistent spinner patterns.
-- Destructive actions (delete, deactivate, archive) always show a confirmation dialog before execution.
-- Network errors display a generic "Connection error, please try again" toast.
-- Inline form validation errors are shown below fields (not as toasts).
+- API errors displayed as toast notifications via `useToast()` hook
+- Inline form validation errors shown below fields (title required, duration must be positive)
+- Destructive actions always show confirmation dialog before execution
+- Loading states use consistent spinner patterns
 
 ## Testing Strategy
 
 ### Unit Tests
 
-Unit tests cover specific examples, edge cases, and error conditions:
+- **Segment Service**: Test CRUD with duration field, status transitions, validation (title required, duration positive integer)
+- **Module Service**: Test creation assigns sort_order, deletion reorders, reorder maintains contiguity, 404 for non-existent segment
+- **Lesson Service**: Test content_type validation (text requires content_body, video requires video_url), estimated time fields persistence, sort_order contiguity
+- **User Service**: Test creation with duplicate email (409), password hash never exposed, search filters case-insensitively
+- **Assignment Service**: Test assign/remove round-trips, 409 for duplicates, 404 for non-existent entities
+- **Validation**: Test Zod schemas reject invalid payloads (missing title, invalid duration, invalid URL)
 
-- **Service layer**: Test each service method with concrete inputs/outputs
-  - Segment CRUD with valid/invalid inputs
-  - Status transition edge cases (all invalid transitions)
-  - Module/Lesson creation with missing parent entities
-  - User creation with duplicate emails
-  - Password reset token generation and expiry
-- **Validation layer**: Test Zod schemas reject invalid payloads
-  - Missing required fields
-  - Invalid email formats
-  - Invalid URL formats for video lessons
-  - Invalid content_type values
-- **Middleware**: Test auth and admin guard with valid/invalid tokens
-- **Frontend components**: Test rendering, form validation, conditional field display
+### Property-Based Tests (fast-check)
 
-### Property-Based Tests
-
-Property-based tests verify universal properties across randomized inputs. Use `fast-check` as the PBT library for TypeScript.
-
-**Configuration:**
-- Minimum 100 iterations per property test
-- Each test tagged with: `Feature: m2-admin-content-management, Property {number}: {title}`
-
-**Properties to implement:**
-
-1. **Status transition validity** — Generate random sequences of status transitions, verify only valid ones succeed and the state machine is respected.
-2. **Module sort order contiguity** — Generate random sequences of create/delete/reorder operations on modules, verify sort_order invariant holds after each operation.
-3. **Lesson sort order contiguity** — Same as above for lessons within a module.
-4. **Assignment round-trip (assign)** — Generate random valid user/segment pairs, assign, list, verify inclusion.
-5. **Assignment round-trip (remove)** — Generate random existing assignments, remove, list, verify exclusion.
-6. **Update persistence** — Generate random valid updates for each entity type, apply, re-fetch, verify persistence.
-7. **Password hash exclusion** — Generate random user operations, verify no response contains password hash.
-8. **Search correctness** — Generate random users and substring queries, verify matching users appear in results.
-9. **Deactivation correctness** — Generate random active users, deactivate, verify status change.
+- Property 1: Segment status transition validity
+- Property 2: Module sort order contiguity invariant
+- Property 3: Lesson sort order contiguity invariant
+- Property 4: Assignment round-trip (assign then list includes)
+- Property 5: Assignment removal round-trip (remove then list excludes)
+- Property 6: Segment duration persistence round-trip
+- Property 7: Lesson estimated time persistence round-trip
+- Property 8: Password hash never exposed
 
 ### Integration Tests
 
-Integration tests verify end-to-end behavior with a real database:
-
-- **Content hierarchy**: Create segment → add modules → add lessons → verify listing and ordering
-- **Referential integrity**: Attempt to delete segment with modules, verify rejection
-- **Auth flow**: Verify admin-only endpoints reject non-admin and unauthenticated requests
-- **Assignment flow**: Assign user → list assignments → remove → verify removal
-- **Dashboard stats**: Create entities → verify dashboard counts are accurate
-- **Frontend integration**: Page renders, forms submit, navigation works
-
-### Test Organization
-
-```
-backend/
-  src/
-    modules/
-      segments/__tests__/
-        segment.service.test.ts       # Unit tests
-        segment.service.property.ts   # Property-based tests
-        segment.integration.test.ts   # Integration tests
-      modules/__tests__/
-        module.service.test.ts
-        module.service.property.ts
-      lessons/__tests__/
-        lesson.service.test.ts
-        lesson.service.property.ts
-      users/__tests__/
-        user.service.test.ts
-        user.service.property.ts
-      assignments/__tests__/
-        assignment.service.test.ts
-        assignment.service.property.ts
-
-frontend/
-  src/
-    features/admin/__tests__/
-      dashboard.test.tsx
-      segment-list.test.tsx
-      user-list.test.tsx
-```
+- Full content hierarchy: create segment (with duration) → add modules → add lessons (with estimated time) → verify listing
+- Referential integrity: delete segment with modules fails, delete module with lessons fails
+- Auth flow: admin-only endpoints reject non-admin and unauthenticated requests
+- Assignment flow: assign → list → remove → verify
+- Dashboard stats: accurate after entity creation
 
 ## Scope Guardrails
 
-- This milestone covers admin dashboard, Segment/Module/Lesson CRUD, user management (create, list, edit, deactivate, password reset), and segment assignment only.
-- Bulk user imports are excluded from this milestone.
-- Role-based admin permissions (granular admin roles) are excluded from this milestone.
-- User learning experience (dashboard, lesson viewing, progress tracking) belongs to Milestone 3.
-- Quizzes belong to Milestone 4.
-- Email notifications (weekly/monthly) belong to Milestone 5.
-- Segment access duration enforcement belongs to Milestone 3 (learner-facing).
-- SSO, MFA, analytics, certificates, and CRM integrations are out of scope for the MVP.
+- M2 fully implements admin content creation for Segment → Module → Lesson.
+- Modules and Lessons are real entities, NOT placeholders.
+- Do NOT implement quiz creation, quiz submission, quiz scoring, or quiz progress in M2. Quiz belongs to M4.
+- Do NOT implement learner-side lesson consumption/viewing/completion in M2. Learner viewing belongs to M3.
+- M2 MUST create the full admin-managed content structure that M3 and M4 depend on.
+- Bulk user imports excluded.
+- Role-based admin permissions excluded.
+- SSO, MFA, analytics, certificates excluded.

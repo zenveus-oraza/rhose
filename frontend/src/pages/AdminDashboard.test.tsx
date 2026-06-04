@@ -18,24 +18,32 @@ const mockDashboardStats = {
   totalLessons: 48,
 };
 
-const mockSegments = [
-  {
-    id: '1',
-    title: 'Dental Hygiene Basics',
-    description: 'Introduction to dental hygiene',
-    status: 'active' as const,
-    createdAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T10:00:00Z',
+const mockSegments = {
+  data: [
+    {
+      id: '1',
+      title: 'Dental Hygiene Basics',
+      description: 'Introduction to dental hygiene',
+      status: 'active' as const,
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T10:00:00Z',
+    },
+    {
+      id: '2',
+      title: 'Advanced Procedures',
+      description: 'Advanced dental procedures',
+      status: 'draft' as const,
+      createdAt: '2024-01-10T10:00:00Z',
+      updatedAt: '2024-01-10T10:00:00Z',
+    },
+  ],
+  pagination: {
+    page: 1,
+    limit: 20,
+    total: 2,
+    totalPages: 1,
   },
-  {
-    id: '2',
-    title: 'Advanced Procedures',
-    description: 'Advanced dental procedures',
-    status: 'draft' as const,
-    createdAt: '2024-01-10T10:00:00Z',
-    updatedAt: '2024-01-10T10:00:00Z',
-  },
-];
+};
 
 vi.mock('@/hooks/useAdminApi', () => ({
   useDashboardStats: vi.fn(),

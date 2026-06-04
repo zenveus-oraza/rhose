@@ -124,14 +124,19 @@ function RecentActivityItem({ activity }: { activity: ActivityItem }) {
 export function AdminDashboard() {
   const { user } = useAuth();
   const { data: stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
-  const { data: segments, isLoading: segmentsLoading, error: segmentsError } = useSegments();
 
-  const [statusFilter, setStatusFilter] = useState<'all' | SegmentStatus>('all');
+  // Add pagination state for segments
+  const [segmentPage, setSegmentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
 
-  const filteredSegments = segments?.filter((segment) => {
-    if (statusFilter === 'all') return true;
-    return segment.status === statusFilter;
-  }) ?? [];
+  const { data: segmentsData, isLoading: segmentsLoading, error: segmentsError } = useSegments({
+    page: segmentPage,
+    limit: 5,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+  });
+
+  // Exclude archived from the dashboard segment list
+  const segments = (segmentsData?.data ?? []).filter((s) => s.status !== 'archived');
 
   // Lightweight recent activity (placeholder operational events)
   const recentActivity: ActivityItem[] = [
@@ -230,14 +235,13 @@ export function AdminDashboard() {
                 <Filter size={16} className="text-muted-400" />
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as 'all' | SegmentStatus)}
+                  onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'draft')}
                   className="rounded-lg border border-muted-200 bg-white px-3 py-1.5 text-helper text-muted-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   aria-label="Filter segments by status"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
                   <option value="draft">Draft</option>
-                  <option value="archived">Archived</option>
                 </select>
               </div>
             </div>
@@ -251,16 +255,43 @@ export function AdminDashboard() {
                 <AlertCircle size={14} />
                 <span>Failed to load segments.</span>
               </div>
-            ) : filteredSegments.length === 0 ? (
+            ) : segments.length === 0 ? (
               <p className="py-6 text-center text-helper text-muted-400">
                 No segments found.
               </p>
             ) : (
-              <div className="max-h-80 overflow-y-auto">
-                {filteredSegments.map((segment) => (
-                  <SegmentRow key={segment.id} segment={segment} />
-                ))}
-              </div>
+              <>
+                <div>
+                  {segments.map((segment) => (
+                    <SegmentRow key={segment.id} segment={segment} />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                {segmentsData?.pagination && segmentsData.pagination.totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between border-t border-muted-100 pt-3">
+                    <p className="text-helper text-muted-500">
+                      Page {segmentsData.pagination.page} of {segmentsData.pagination.totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSegmentPage(p => Math.max(1, p - 1))}
+                        disabled={segmentPage <= 1}
+                        className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        onClick={() => setSegmentPage(p => p + 1)}
+                        disabled={segmentPage >= segmentsData.pagination.totalPages}
+                        className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Navigation link to content management */}

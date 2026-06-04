@@ -82,6 +82,9 @@ export const userManagementService = {
         email: users.email,
         role: users.role,
         status: users.status,
+        jobTitle: users.jobTitle,
+        phone: users.phone,
+        profileImage: users.profileImage,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       });
@@ -126,6 +129,9 @@ export const userManagementService = {
         email: users.email,
         role: users.role,
         status: users.status,
+        jobTitle: users.jobTitle,
+        phone: users.phone,
+        profileImage: users.profileImage,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
@@ -147,10 +153,10 @@ export const userManagementService = {
   },
 
   /**
-   * Update a user's name or role.
+   * Update a user's name, role, phone, jobTitle, or profileImage.
    * Throws 404 if user not found.
    */
-  async update(id: string, data: { name?: string; role?: UserRole }): Promise<UserProfile> {
+  async update(id: string, data: { name?: string; role?: UserRole; phone?: string | null; jobTitle?: string | null; profileImage?: string | null }): Promise<UserProfile> {
     // Check user exists
     const [existing] = await db
       .select({ id: users.id })
@@ -166,6 +172,9 @@ export const userManagementService = {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (data.name !== undefined) updateData.name = data.name;
     if (data.role !== undefined) updateData.role = data.role;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.jobTitle !== undefined) updateData.jobTitle = data.jobTitle;
+    if (data.profileImage !== undefined) updateData.profileImage = data.profileImage;
 
     const [updated] = await db
       .update(users)
@@ -177,6 +186,9 @@ export const userManagementService = {
         email: users.email,
         role: users.role,
         status: users.status,
+        jobTitle: users.jobTitle,
+        phone: users.phone,
+        profileImage: users.profileImage,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       });
@@ -186,18 +198,32 @@ export const userManagementService = {
 
   /**
    * Deactivate a user account by setting status to "deactivated".
-   * Throws 404 if user not found.
+   * Prevents deactivating the last active admin user.
+   * Throws 404 if user not found, 400 if last admin.
    */
   async deactivate(id: string): Promise<UserProfile> {
     // Check user exists
     const [existing] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, role: users.role, status: users.status })
       .from(users)
       .where(eq(users.id, id))
       .limit(1);
 
     if (!existing) {
       throw AppError.notFound('User not found');
+    }
+
+    // Check if user is admin
+    if (existing.role === 'admin' && existing.status !== 'deactivated') {
+      // Count active admins (excluding this user)
+      const [adminCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(sql`${users.role} = 'admin' AND ${users.status} != 'deactivated' AND ${users.id} != ${id}`);
+
+      if ((adminCount?.count ?? 0) === 0) {
+        throw AppError.badRequest('Cannot deactivate the last active admin user');
+      }
     }
 
     const [updated] = await db
@@ -210,6 +236,9 @@ export const userManagementService = {
         email: users.email,
         role: users.role,
         status: users.status,
+        jobTitle: users.jobTitle,
+        phone: users.phone,
+        profileImage: users.profileImage,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       });

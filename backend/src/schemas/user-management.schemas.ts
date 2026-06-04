@@ -20,13 +20,16 @@ export const adminCreateUserSchema = z.object({
 
 /**
  * Schema for updating a user via admin panel.
- * Only name and role can be updated.
+ * Name, role, phone, jobTitle, and profileImage can be updated.
  */
 export const adminUpdateUserSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255).optional(),
   role: z.enum(userRoleValues, {
     errorMap: () => ({ message: 'Role must be "admin" or "learner"' }),
   }).optional(),
+  phone: z.string().max(20).optional().nullable(),
+  jobTitle: z.string().max(255).optional().nullable(),
+  profileImage: z.string().optional().nullable(),
 });
 
 /**

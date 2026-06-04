@@ -283,11 +283,25 @@ describe('Assignment Service — Unit Tests', () => {
             })),
           };
         }
-        // Return assigned users
+        if (selectCallCount === 2) {
+          // Count query
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 2 }]),
+            })),
+          };
+        }
+        // Return assigned users (paginated with orderBy, limit, offset)
         return {
           from: vi.fn(() => ({
             innerJoin: vi.fn(() => ({
-              where: vi.fn().mockResolvedValue(mockUsers),
+              where: vi.fn(() => ({
+                orderBy: vi.fn(() => ({
+                  limit: vi.fn(() => ({
+                    offset: vi.fn().mockResolvedValue(mockUsers),
+                  })),
+                })),
+              })),
             })),
           })),
         };
@@ -295,8 +309,9 @@ describe('Assignment Service — Unit Tests', () => {
 
       const result = await assignmentService.listBySegment('seg-1');
 
-      expect(result).toEqual(mockUsers);
-      expect(result).toHaveLength(2);
+      expect(result.data).toEqual(mockUsers);
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination.total).toBe(2);
     });
 
     it('should return 404 when segment does not exist', async () => {
@@ -352,11 +367,25 @@ describe('Assignment Service — Unit Tests', () => {
             })),
           };
         }
-        // Return assigned segments
+        if (selectCallCount === 2) {
+          // Count query
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 2 }]),
+            })),
+          };
+        }
+        // Return assigned segments (paginated with orderBy, limit, offset)
         return {
           from: vi.fn(() => ({
             innerJoin: vi.fn(() => ({
-              where: vi.fn().mockResolvedValue(mockSegments),
+              where: vi.fn(() => ({
+                orderBy: vi.fn(() => ({
+                  limit: vi.fn(() => ({
+                    offset: vi.fn().mockResolvedValue(mockSegments),
+                  })),
+                })),
+              })),
             })),
           })),
         };
@@ -364,8 +393,9 @@ describe('Assignment Service — Unit Tests', () => {
 
       const result = await assignmentService.listByUser('user-1');
 
-      expect(result).toEqual(mockSegments);
-      expect(result).toHaveLength(2);
+      expect(result.data).toEqual(mockSegments);
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination.total).toBe(2);
     });
 
     it('should return 404 when user does not exist', async () => {

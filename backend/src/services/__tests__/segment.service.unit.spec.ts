@@ -7,9 +7,11 @@ vi.mock('../../db/index.js', () => {
   const mockValues = vi.fn(() => ({ returning: mockReturning }));
   const mockInsert = vi.fn(() => ({ values: mockValues }));
 
-  const mockLimit = vi.fn();
-  const mockWhere = vi.fn(() => ({ limit: mockLimit }));
-  const mockFrom = vi.fn(() => ({ where: mockWhere, orderBy: vi.fn() }));
+  const mockOffset = vi.fn();
+  const mockLimit = vi.fn(() => ({ offset: mockOffset }));
+  const mockOrderBy = vi.fn(() => ({ limit: mockLimit }));
+  const mockWhere = vi.fn(() => ({ limit: mockLimit, orderBy: mockOrderBy }));
+  const mockFrom = vi.fn(() => ({ where: mockWhere, orderBy: mockOrderBy }));
   const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
   const mockUpdateReturning = vi.fn();
@@ -35,6 +37,8 @@ vi.mock('../../db/index.js', () => {
         mockFrom,
         mockWhere,
         mockLimit,
+        mockOffset,
+        mockOrderBy,
         mockUpdate,
         mockUpdateSet,
         mockUpdateWhere,
@@ -59,11 +63,12 @@ describe('Segment Service — Unit Tests', () => {
   });
 
   describe('create', () => {
-    it('should create a segment with title and default draft status', async () => {
+    it('should create a segment with title, duration, and default draft status', async () => {
       const mockSegment = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         title: 'Test Segment',
         description: null,
+        duration: 30,
         status: 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -71,22 +76,25 @@ describe('Segment Service — Unit Tests', () => {
 
       mocks.mockReturning.mockResolvedValue([mockSegment]);
 
-      const result = await segmentService.create({ title: 'Test Segment' });
+      const result = await segmentService.create({ title: 'Test Segment', duration: 30 });
 
       expect(result).toEqual(mockSegment);
       expect(result.status).toBe('draft');
+      expect(result.duration).toBe(30);
       expect(mocks.mockInsert).toHaveBeenCalled();
       expect(mocks.mockValues).toHaveBeenCalledWith({
         title: 'Test Segment',
         description: null,
+        duration: 30,
       });
     });
 
-    it('should create a segment with title and description', async () => {
+    it('should create a segment with title, description, and duration', async () => {
       const mockSegment = {
         id: '123e4567-e89b-12d3-a456-426614174001',
         title: 'Test Segment',
         description: 'A detailed description',
+        duration: 14,
         status: 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -97,13 +105,16 @@ describe('Segment Service — Unit Tests', () => {
       const result = await segmentService.create({
         title: 'Test Segment',
         description: 'A detailed description',
+        duration: 14,
       });
 
       expect(result).toEqual(mockSegment);
       expect(result.description).toBe('A detailed description');
+      expect(result.duration).toBe(14);
       expect(mocks.mockValues).toHaveBeenCalledWith({
         title: 'Test Segment',
         description: 'A detailed description',
+        duration: 14,
       });
     });
 
@@ -112,6 +123,7 @@ describe('Segment Service — Unit Tests', () => {
         id: '123e4567-e89b-12d3-a456-426614174002',
         title: 'No Desc',
         description: null,
+        duration: 7,
         status: 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -119,37 +131,62 @@ describe('Segment Service — Unit Tests', () => {
 
       mocks.mockReturning.mockResolvedValue([mockSegment]);
 
-      await segmentService.create({ title: 'No Desc' });
+      await segmentService.create({ title: 'No Desc', duration: 7 });
 
       expect(mocks.mockValues).toHaveBeenCalledWith({
         title: 'No Desc',
         description: null,
+        duration: 7,
+      });
+    });
+
+    it('should persist large duration values correctly', async () => {
+      const mockSegment = {
+        id: '123e4567-e89b-12d3-a456-426614174003',
+        title: 'Long Segment',
+        description: null,
+        duration: 365,
+        status: 'draft',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mocks.mockReturning.mockResolvedValue([mockSegment]);
+
+      const result = await segmentService.create({ title: 'Long Segment', duration: 365 });
+
+      expect(result.duration).toBe(365);
+      expect(mocks.mockValues).toHaveBeenCalledWith({
+        title: 'Long Segment',
+        description: null,
+        duration: 365,
       });
     });
   });
 
   describe('getById', () => {
-    it('should return segment with module count when found', async () => {
+    it('should return segment with module count and duration when found', async () => {
       const mockSegment = {
         id: 'seg-1',
         title: 'Found Segment',
         description: 'desc',
+        duration: 21,
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      // First call: select segment
-      // Second call: select module count
+      // First call: select segment by id
+      // Second call: count modules
       let selectCallCount = 0;
       mocks.mockSelect.mockImplementation(() => {
         selectCallCount++;
-        const mockFrom = vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn().mockResolvedValue([mockSegment]),
-          })),
-        }));
         if (selectCallCount === 1) {
+          const mockFrom = vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn().mockResolvedValue([mockSegment]),
+            })),
+          }));
           return { from: mockFrom };
         }
         // Second call for module count
@@ -162,6 +199,44 @@ describe('Segment Service — Unit Tests', () => {
       const result = await segmentService.getById('seg-1');
 
       expect(result).toEqual({ ...mockSegment, moduleCount: 3 });
+      expect(result.duration).toBe(21);
+      expect(result.moduleCount).toBe(3);
+    });
+
+    it('should return duration field in getById response', async () => {
+      const mockSegment = {
+        id: 'seg-dur',
+        title: 'Duration Segment',
+        description: null,
+        duration: 45,
+        status: 'draft',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue([mockSegment]),
+              })),
+            })),
+          };
+        }
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 0 }]),
+          })),
+        };
+      });
+
+      const result = await segmentService.getById('seg-dur');
+
+      expect(result.duration).toBe(45);
+      expect(result).toHaveProperty('duration');
     });
 
     it('should throw 404 AppError when segment does not exist', async () => {
@@ -181,31 +256,85 @@ describe('Segment Service — Unit Tests', () => {
     });
   });
 
+  describe('update — duration', () => {
+    function setupUpdateMocks(
+      existingSegment: Record<string, unknown>,
+      updatedSegment: Record<string, unknown>
+    ) {
+      mocks.mockSelect.mockImplementation(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue([existingSegment]),
+          })),
+        })),
+      }));
+
+      mocks.mockUpdateSet.mockReturnValue({
+        where: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue([updatedSegment]),
+        })),
+      });
+      mocks.mockUpdate.mockReturnValue({ set: mocks.mockUpdateSet });
+    }
+
+    it('should update duration and persist correctly', async () => {
+      const existing = {
+        id: 'seg-dur-update',
+        title: 'Existing',
+        description: null,
+        duration: 30,
+        status: 'draft',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      };
+      const updated = { ...existing, duration: 60, updatedAt: new Date() };
+      setupUpdateMocks(existing, updated);
+
+      const result = await segmentService.update('seg-dur-update', { duration: 60 });
+
+      expect(result.duration).toBe(60);
+    });
+
+    it('should update duration along with other fields', async () => {
+      const existing = {
+        id: 'seg-dur-multi',
+        title: 'Old Title',
+        description: null,
+        duration: 10,
+        status: 'draft',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      };
+      const updated = { ...existing, title: 'New Title', duration: 90, updatedAt: new Date() };
+      setupUpdateMocks(existing, updated);
+
+      const result = await segmentService.update('seg-dur-multi', { title: 'New Title', duration: 90 });
+
+      expect(result.title).toBe('New Title');
+      expect(result.duration).toBe(90);
+    });
+  });
+
   describe('update — status transitions', () => {
     const makeExistingSegment = (status: string) => ({
       id: 'seg-update',
       title: 'Existing',
       description: null,
+      duration: 30,
       status,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
     });
 
     function setupUpdateMocks(existingSegment: ReturnType<typeof makeExistingSegment>, updatedSegment: unknown) {
-      // First select: find existing segment
-      let selectCallCount = 0;
-      mocks.mockSelect.mockImplementation(() => {
-        selectCallCount++;
-        return {
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn().mockResolvedValue(selectCallCount === 1 ? [existingSegment] : []),
-            })),
+      mocks.mockSelect.mockImplementation(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue([existingSegment]),
           })),
-        };
-      });
+        })),
+      }));
 
-      // Update chain
       mocks.mockUpdateSet.mockReturnValue({
         where: vi.fn(() => ({
           returning: vi.fn().mockResolvedValue([updatedSegment]),
@@ -350,6 +479,18 @@ describe('Segment Service — Unit Tests', () => {
 
       expect(result.title).toBe('Changed');
     });
+
+    it('should update timestamp on valid status transition', async () => {
+      const existing = makeExistingSegment('draft');
+      const newUpdatedAt = new Date('2024-06-15');
+      const updated = { ...existing, status: 'active', updatedAt: newUpdatedAt };
+      setupUpdateMocks(existing, updated);
+
+      const result = await segmentService.update('seg-update', { status: 'active' });
+
+      expect(result.updatedAt).toEqual(newUpdatedAt);
+      expect(result.updatedAt).not.toEqual(existing.updatedAt);
+    });
   });
 
   describe('delete', () => {
@@ -358,6 +499,7 @@ describe('Segment Service — Unit Tests', () => {
         id: 'seg-del',
         title: 'To Delete',
         description: null,
+        duration: 30,
         status: 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -397,6 +539,7 @@ describe('Segment Service — Unit Tests', () => {
         id: 'seg-with-modules',
         title: 'Has Modules',
         description: null,
+        duration: 14,
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -439,6 +582,7 @@ describe('Segment Service — Unit Tests', () => {
         id: 'seg-with-5-modules',
         title: 'Has 5 Modules',
         description: null,
+        duration: 7,
         status: 'draft',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -486,37 +630,200 @@ describe('Segment Service — Unit Tests', () => {
         code: 'NOT_FOUND',
       });
     });
+
+    it('should block deletion regardless of segment status when modules exist', async () => {
+      const existingDraft = {
+        id: 'seg-draft-with-modules',
+        title: 'Draft With Modules',
+        description: null,
+        duration: 10,
+        status: 'draft',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue([existingDraft]),
+              })),
+            })),
+          };
+        }
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn().mockResolvedValue([{ count: 1 }]),
+          })),
+        };
+      });
+
+      await expect(segmentService.delete('seg-draft-with-modules')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'HAS_CHILDREN',
+      });
+    });
   });
 
   describe('list', () => {
-    it('should return all segments ordered by created_at descending', async () => {
+    it('should return paginated segments with duration field included', async () => {
       const mockSegments = [
-        { id: 'seg-2', title: 'Newer', status: 'active', createdAt: new Date('2024-02-01'), updatedAt: new Date() },
-        { id: 'seg-1', title: 'Older', status: 'draft', createdAt: new Date('2024-01-01'), updatedAt: new Date() },
+        { id: 'seg-2', title: 'Newer', description: null, duration: 30, status: 'active', createdAt: new Date('2024-02-01'), updatedAt: new Date() },
+        { id: 'seg-1', title: 'Older', description: null, duration: 14, status: 'draft', createdAt: new Date('2024-01-01'), updatedAt: new Date() },
       ];
 
-      mocks.mockSelect.mockImplementation(() => ({
-        from: vi.fn(() => ({
-          orderBy: vi.fn().mockResolvedValue(mockSegments),
-        })),
-      }));
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          // First call: count query
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 2 }]),
+            })),
+          };
+        }
+        // Second call: data query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue(mockSegments),
+                })),
+              })),
+            })),
+          })),
+        };
+      });
 
       const result = await segmentService.list();
 
-      expect(result).toEqual(mockSegments);
-      expect(result).toHaveLength(2);
+      expect(result.data).toEqual(mockSegments);
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].duration).toBe(30);
+      expect(result.data[1].duration).toBe(14);
+      expect(result.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 2,
+        totalPages: 1,
+      });
     });
 
     it('should return empty array when no segments exist', async () => {
-      mocks.mockSelect.mockImplementation(() => ({
-        from: vi.fn(() => ({
-          orderBy: vi.fn().mockResolvedValue([]),
-        })),
-      }));
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          // Count query
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 0 }]),
+            })),
+          };
+        }
+        // Data query
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue([]),
+                })),
+              })),
+            })),
+          })),
+        };
+      });
 
       const result = await segmentService.list();
 
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
+      expect(result.pagination.total).toBe(0);
+    });
+
+    it('should include duration in listed segment objects', async () => {
+      const mockSegments = [
+        { id: 'seg-a', title: 'Alpha', description: 'desc', duration: 7, status: 'draft', createdAt: new Date(), updatedAt: new Date() },
+        { id: 'seg-b', title: 'Beta', description: null, duration: 90, status: 'active', createdAt: new Date(), updatedAt: new Date() },
+        { id: 'seg-c', title: 'Gamma', description: null, duration: 365, status: 'archived', createdAt: new Date(), updatedAt: new Date() },
+      ];
+
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 3 }]),
+            })),
+          };
+        }
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue(mockSegments),
+                })),
+              })),
+            })),
+          })),
+        };
+      });
+
+      const result = await segmentService.list();
+
+      // Verify all segments have duration field
+      for (const segment of result.data) {
+        expect(segment).toHaveProperty('duration');
+        expect(typeof segment.duration).toBe('number');
+      }
+      expect(result.data[0].duration).toBe(7);
+      expect(result.data[1].duration).toBe(90);
+      expect(result.data[2].duration).toBe(365);
+    });
+
+    it('should respect pagination parameters', async () => {
+      const mockSegments = [
+        { id: 'seg-3', title: 'Page 2 Item', description: null, duration: 20, status: 'draft', createdAt: new Date(), updatedAt: new Date() },
+      ];
+
+      let selectCallCount = 0;
+      mocks.mockSelect.mockImplementation(() => {
+        selectCallCount++;
+        if (selectCallCount === 1) {
+          return {
+            from: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([{ count: 25 }]),
+            })),
+          };
+        }
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              orderBy: vi.fn(() => ({
+                limit: vi.fn(() => ({
+                  offset: vi.fn().mockResolvedValue(mockSegments),
+                })),
+              })),
+            })),
+          })),
+        };
+      });
+
+      const result = await segmentService.list({ page: 2, limit: 10 });
+
+      expect(result.pagination).toEqual({
+        page: 2,
+        limit: 10,
+        total: 25,
+        totalPages: 3,
+      });
     });
   });
 });

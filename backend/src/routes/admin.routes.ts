@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { count } from 'drizzle-orm';
+import { count, ne } from 'drizzle-orm';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import { segments } from '../db/schema/segments.js';
@@ -29,7 +29,7 @@ adminRouter.get(
   '/dashboard/stats',
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const [segmentCount] = await db.select({ count: count() }).from(segments);
+      const [segmentCount] = await db.select({ count: count() }).from(segments).where(ne(segments.status, 'archived'));
       const [moduleCount] = await db.select({ count: count() }).from(modules);
       const [lessonCount] = await db.select({ count: count() }).from(lessons);
       const [userCount] = await db.select({ count: count() }).from(users);

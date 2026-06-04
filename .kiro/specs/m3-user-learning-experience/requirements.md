@@ -2,7 +2,11 @@
 
 ## Introduction
 
-Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, lesson views supporting text content and embedded video links, lesson completion confirmation flow, sequential lesson progression enforcement, and segment-based access control with duration handling. This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments). Offline access and downloadable lesson content are explicitly excluded.
+Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, lesson views supporting text content and embedded video links, lesson completion confirmation flow, sequential lesson progression enforcement, and segment-based access control with duration handling. This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments). 
+
+**IMPORTANT**: This milestone implements all requirements from M3 requirements.md AND follows all governance rules and cross-cutting concerns documented in `.kiro/steering/governance-and-cross-cutting-concerns.md`, including pagination, profile picture display with lazy loading, phone/job title fields, and admin editing capabilities.
+
+Offline access and downloadable lesson content are explicitly excluded.
 
 ## Design References
 
@@ -15,7 +19,7 @@ Screenshots guide UI layout and component behavior. They do not add features out
 
 ## Glossary
 
-- **Learner_Dashboard**: The authenticated learner landing page displaying the user's assigned segments with progress indicators and access status.
+- **Learner_Dashboard**: The authenticated learner landing page displaying the user's assigned segments with progress indicators, access status, profile pictures with lazy loading, and pagination for large segment lists.
 - **Segment_Access_Service**: The backend service responsible for verifying a learner's assignment to a segment and enforcing access duration expiry.
 - **Progress_Service**: The backend service responsible for tracking and querying lesson completion state for a user.
 - **Lesson_View**: The frontend component that renders lesson content (text or embedded video) to the learner.
@@ -174,6 +178,49 @@ Screenshots guide UI layout and component behavior. They do not add features out
 8. THE Database SHALL enforce that Lesson_Completion references a valid Lesson via foreign key constraint.
 9. FOR ALL Lesson_Completion records, the user_id and lesson_id pair SHALL be unique (uniqueness invariant).
 
+### Requirement 11: Learner Profile Display Enhancements
+
+**User Story:** As a learner, I want to see complete profile information including phone number and job title so that my profile accurately reflects my details.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner views their profile, THE ProfilePage SHALL display the learner's name, email, phone number, job title, and profile picture.
+2. THE ProfilePage SHALL display the profile picture with lazy loading (`loading="lazy"` attribute) to improve page load performance.
+3. WHEN the learner's phone or job title fields are present, THE ProfilePage SHALL display them in a formatted, readable layout.
+4. THE ProfilePage SHALL allow learners to edit their phone number and job title in addition to existing fields.
+5. THE ProfilePage edit form SHALL validate phone number format (maximum 20 characters) and job title (maximum 255 characters).
+6. WHEN a learner updates their profile, THE Profile_Service SHALL persist phone and job title changes to the database.
+
+### Requirement 12: Pagination and Search for User Lists
+
+**User Story:** As a learner or admin, I want user lists and segment lists to support pagination and search so that I can efficiently navigate large datasets.
+
+#### Acceptance Criteria
+
+1. WHEN a user navigates to any page displaying a list of users, modules, lessons, or assignments, THE Frontend SHALL display paginated results with configurable items per page (default 20).
+2. THE Frontend SHALL display pagination controls including "Previous" and "Next" buttons, with buttons disabled at boundaries.
+3. THE Frontend SHALL display pagination metadata showing "Page X of Y (Total Z items)" to inform the user of their position within the dataset.
+4. WHEN a search or filter is applied, THE Frontend SHALL automatically reset the current page to 1.
+5. THE Backend SHALL support pagination query parameters: `page`, `limit`, `search`, and filter-specific parameters (e.g., `status` for segments).
+6. WHEN a learner or admin performs a search in a dropdown or list, THE Frontend SHALL make server-side API calls with the search query.
+7. FOR ALL paginated list endpoints, changing the page number SHALL request only the results for that page, reducing data transfer and improving performance.
+8. THE Backend SHALL return paginated results with total count and page count metadata to enable frontend pagination UI.
+
+### Requirement 13: Searchable Dropdowns for Large Lists
+
+**User Story:** As an admin, I want searchable dropdowns for selecting segments and users when assigning training so that I can efficiently handle 100+ items without scrolling through entire lists.
+
+#### Acceptance Criteria
+
+1. WHEN an admin uses the AssignTrainingPage segment selector, THE Frontend SHALL display a SearchableDropdown component instead of a plain `<select>` element.
+2. THE SearchableDropdown SHALL support text search filtering both locally and server-side to handle large datasets.
+3. WHEN an admin types in the SearchableDropdown search input, THE Frontend SHALL filter or request matching items in real-time.
+4. THE SearchableDropdown SHALL display "No items found" when the search returns no results.
+5. THE SearchableDropdown SHALL support keyboard navigation (Arrow keys, Enter, Escape).
+6. THE SearchableDropdown SHALL maintain proper focus management and accessibility attributes (ARIA labels).
+7. WHEN an admin selects an item from the SearchableDropdown, THE dropdown SHALL close and display the selected value.
+8. THE Frontend SHALL not hard-code item limits (e.g., 100) for user or segment lists; instead, all limits SHALL be managed via pagination.
+
 ## Scope Guardrails
 
 - This milestone covers learner dashboard, segment access control with duration, lesson viewing (text and video), lesson completion confirmation, sequential progression, and progress tracking only.
@@ -183,3 +230,16 @@ Screenshots guide UI layout and component behavior. They do not add features out
 - Downloadable lesson content is excluded from the MVP.
 - Admin management of access_duration_days on assignments is an M2 admin concern (the admin sets duration when assigning); M3 only enforces the duration on the learner side.
 - SSO, MFA, analytics, certificates, and CRM integrations are out of scope for the MVP.
+
+## Cross-Cutting Concerns & Governance
+
+**IMPORTANT**: This milestone implements in alignment with `.kiro/steering/governance-and-cross-cutting-concerns.md`, which establishes:
+
+- **Database Schema Governance** (Section 1): All schema changes must cascade through the stack (DB → Types → API → Frontend UI)
+- **User Profile Extensions** (Section 2): Phone, job title, and profile picture fields are handled consistently across all pages
+- **Pagination & Search** (Section 3): All lists with 20+ items must have pagination; search/filter resets page to 1
+- **Profile Picture Display** (Section 6): All profile pictures must use lazy loading (`loading="lazy"` attribute)
+- **Role vs. Job Title Distinction** (Section 7): Clear visual hierarchy with role primary, job title secondary
+- **Admin Editing Capabilities** (Section 5): Admins can edit comprehensive user profile fields
+
+Refer to the governance document for implementation details and patterns.

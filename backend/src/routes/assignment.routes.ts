@@ -57,15 +57,20 @@ export const segmentAssignmentRouter = Router({ mergeParams: true });
 
 /**
  * GET /api/admin/segments/:segmentId/assignments
- * List users assigned to a segment.
+ * List users assigned to a segment with pagination.
+ * Query params: page, limit
  */
 segmentAssignmentRouter.get(
   '/',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const segmentId = req.params.segmentId as string;
-      const assignments = await assignmentService.listBySegment(segmentId);
-      sendSuccess(res, assignments);
+      const { page, limit } = req.query;
+      const result = await assignmentService.listBySegment(segmentId, {
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      });
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -80,15 +85,20 @@ export const userAssignmentRouter = Router({ mergeParams: true });
 
 /**
  * GET /api/admin/users/:userId/assignments
- * List segments assigned to a user.
+ * List segments assigned to a user with pagination.
+ * Query params: page, limit
  */
 userAssignmentRouter.get(
   '/',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.params.userId as string;
-      const assignments = await assignmentService.listByUser(userId);
-      sendSuccess(res, assignments);
+      const { page, limit } = req.query;
+      const result = await assignmentService.listByUser(userId, {
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      });
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }

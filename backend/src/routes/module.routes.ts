@@ -34,15 +34,20 @@ segmentModuleRouter.post(
 
 /**
  * GET /api/admin/segments/:segmentId/modules
- * List all modules in a segment ordered by sort_order ascending with lesson count.
+ * List modules in a segment with pagination, ordered by sort_order ascending.
+ * Query params: page, limit
  */
 segmentModuleRouter.get(
   '/',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const segmentId = req.params.segmentId as string;
-      const modules = await moduleService.listBySegment(segmentId);
-      sendSuccess(res, modules);
+      const { page, limit } = req.query;
+      const result = await moduleService.listBySegment(segmentId, {
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      });
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }

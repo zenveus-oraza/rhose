@@ -29,6 +29,8 @@ router.get(
           name: users.name,
           role: users.role,
           status: users.status,
+          jobTitle: users.jobTitle,
+          phone: users.phone,
           profileImage: users.profileImage,
           createdAt: users.createdAt,
         })
@@ -57,7 +59,7 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = (req as any).user.userId;
-      const { name, email, profileImage } = req.body;
+      const { name, email, profileImage, jobTitle, phone } = req.body;
 
       // Check email uniqueness if email is being changed
       if (email) {
@@ -76,6 +78,8 @@ router.patch(
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
       if (profileImage !== undefined) updateData.profileImage = profileImage;
+      if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+      if (phone !== undefined) updateData.phone = phone;
 
       const [updated] = await db
         .update(users)
@@ -87,6 +91,8 @@ router.patch(
           name: users.name,
           role: users.role,
           status: users.status,
+          jobTitle: users.jobTitle,
+          phone: users.phone,
           profileImage: users.profileImage,
           createdAt: users.createdAt,
         });

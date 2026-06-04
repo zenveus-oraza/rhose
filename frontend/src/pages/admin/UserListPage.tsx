@@ -1,12 +1,85 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Plus, User, UserCog, KeyRound, UserX } from 'lucide-react';
-import { useUsers, useDeactivateUser, useResetUserPassword } from '@/hooks/useAdminApi';
+import { Search, Filter, Plus, KeyRound, UserX, BookOpen } from 'lucide-react';
+import { useUsers, useDeactivateUser, useResetUserPassword, useUserAssignments } from '@/hooks/useAdminApi';
 import { StatusBadge, ActionMenu, LoadingIndicator, ErrorMessage, ConfirmationDialog, SuccessModal } from '@/components/shared';
 import type { ActionMenuItem } from '@/components/shared';
 import type { UserProfile } from '@/types/admin';
 
 const STATUS_FILTERS = ['All', 'Active', 'Deactivated'] as const;
+
+// UserTableRow component to handle assignments fetching
+function UserTableRow({
+  user,
+  onNavigate,
+  onActionClick,
+  actions,
+}: {
+  user: UserProfile;
+  onNavigate: () => void;
+  onActionClick: (e: React.MouseEvent) => void;
+  actions: ActionMenuItem[];
+}) {
+  // Fetch assignments for this user
+  const { data: assignmentsData } = useUserAssignments(user.id, { limit: 100 });
+  const segments = assignmentsData?.data ?? [];
+  const segmentTitles = segments.map((s: any) => s.title).slice(0, 2);
+  const segmentDisplay = segmentTitles.length > 0 ? segmentTitles.join(', ') : '-';
+  const hasMoreSegments = segments.length > 2;
+
+  return (
+    <tr
+      onClick={onNavigate}
+      className="hover:bg-muted-50 transition-colors cursor-pointer"
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          {user.profileImage ? (
+            <img
+              src={user.profileImage}
+              alt={user.name}
+              loading="lazy"
+              className="h-9 w-9 rounded-full object-cover border border-muted-200"
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <p className="text-body font-medium text-navy">{user.name}</p>
+            <p className="text-helper text-muted-500">{user.email}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div>
+          <p className="text-helper text-muted-700 capitalize font-medium">{user.role}</p>
+          {user.jobTitle && (
+            <p className="text-helper text-muted-500">{user.jobTitle}</p>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <p className="text-body font-medium text-navy max-w-xs truncate" title={segmentDisplay}>
+          {segmentDisplay}
+        </p>
+        {hasMoreSegments && (
+          <p className="text-helper text-muted-500">+{segments.length - 2} more</p>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <p className="text-helper text-muted-600">-</p>
+      </td>
+      <td className="px-4 py-3">
+        <StatusBadge status={user.status} />
+      </td>
+      <td className="px-4 py-3 text-right" onClick={onActionClick}>
+        <ActionMenu items={actions} />
+      </td>
+    </tr>
+  );
+}
 
 export function UserListPage() {
   const navigate = useNavigate();
@@ -63,14 +136,14 @@ export function UserListPage() {
   const getRowActions = (user: UserProfile): ActionMenuItem[] => [
     {
       label: 'View Profile',
-      icon: <User size={16} />,
+      icon: <BookOpen size={16} />,
       onClick: () => navigate(`/admin/users/${user.id}`),
     },
-    {
+    ...(user.role === 'learner' ? [{
       label: 'Assign Segment',
-      icon: <UserCog size={16} />,
+      icon: <BookOpen size={16} />,
       onClick: () => navigate(`/admin/assign-training?userId=${user.id}`),
-    },
+    }] : []),
     {
       label: 'Reset Password',
       icon: <KeyRound size={16} />,
@@ -159,7 +232,7 @@ export function UserListPage() {
                       User
                     </th>
                     <th className="px-4 py-3 text-left text-helper font-medium text-muted-600">
-                      Role / Job Title
+                      Role/Job Title
                     </th>
                     <th className="px-4 py-3 text-left text-helper font-medium text-muted-600">
                       Assigned Segment
@@ -177,39 +250,13 @@ export function UserListPage() {
                 </thead>
                 <tbody className="divide-y divide-muted-200">
                   {filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-muted-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-body font-medium text-navy">{user.name}</p>
-                            <p className="text-helper text-muted-500">{user.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-helper text-muted-700 capitalize">{user.role}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-helper text-muted-500">—</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 rounded-full bg-muted-200">
-                            <div className="h-full w-0 rounded-full bg-teal" />
-                          </div>
-                          <span className="text-helper text-muted-500">—</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={user.status} />
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <ActionMenu items={getRowActions(user)} />
-                      </td>
-                    </tr>
+                    <UserTableRow
+                      key={user.id}
+                      user={user}
+                      onNavigate={() => navigate(`/admin/users/${user.id}`)}
+                      onActionClick={(e) => e.stopPropagation()}
+                      actions={getRowActions(user)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -218,21 +265,42 @@ export function UserListPage() {
             {/* Mobile cards */}
             <div className="lg:hidden divide-y divide-muted-200">
               {filteredUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4">
+                <div
+                  key={user.id}
+                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                  className="flex items-center justify-between p-4 hover:bg-muted-50 transition-colors cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
+                    {user.profileImage ? (
+                      <img
+                        src={user.profileImage}
+                        alt={user.name}
+                        loading="lazy"
+                        className="h-10 w-10 rounded-full object-cover border border-muted-200"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-50 text-primary font-medium text-helper">
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className="text-body font-medium text-navy">{user.name}</p>
                       <p className="text-helper text-muted-500">{user.email}</p>
                       <div className="mt-1 flex items-center gap-2">
-                        <span className="text-helper text-muted-500 capitalize">{user.role}</span>
+                        <span className="text-helper text-muted-500 capitalize font-medium">{user.role}</span>
+                        {user.jobTitle && (
+                          <span className="text-helper text-muted-500">•</span>
+                        )}
+                        {user.jobTitle && (
+                          <span className="text-helper text-muted-500">{user.jobTitle}</span>
+                        )}
                         <StatusBadge status={user.status} />
                       </div>
                     </div>
                   </div>
-                  <ActionMenu items={getRowActions(user)} />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ActionMenu items={getRowActions(user)} />
+                  </div>
                 </div>
               ))}
             </div>

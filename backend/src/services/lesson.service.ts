@@ -3,9 +3,11 @@ import { db } from '../db/index.js';
 import { lessons } from '../db/schema/lessons.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
+import type { PaginatedResult } from './user-management.service.js';
 
 /**
  * Lesson Service — handles all business logic for lesson CRUD and sort order management.
+ * Supports content_type conditional fields and estimated time fields.
  */
 export const lessonService = {
   /**
@@ -34,6 +36,8 @@ export const lessonService = {
     content_type: 'text' | 'video';
     content_body?: string;
     video_url?: string;
+    estimated_time_value?: number | null;
+    estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
     // Verify parent module exists
     await this.verifyModuleExists(moduleId);
@@ -54,6 +58,8 @@ export const lessonService = {
         contentType: data.content_type,
         contentBody: data.content_body ?? null,
         videoUrl: data.video_url ?? null,
+        estimatedTimeValue: data.estimated_time_value ?? null,
+        estimatedTimeUnit: data.estimated_time_unit ?? null,
         sortOrder: nextSortOrder,
       })
       .returning();
@@ -62,18 +68,34 @@ export const lessonService = {
   },
 
   /**
-   * List all lessons for a module ordered by sort_order ascending.
+   * List lessons for a module with pagination, ordered by sort_order ascending.
+   * Includes estimated time fields in the response.
    * Throws 404 if the module does not exist.
    */
-  async listByModule(moduleId: string) {
+  async listByModule(moduleId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<any>> {
     // Verify parent module exists
     await this.verifyModuleExists(moduleId);
 
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(lessons)
+      .where(eq(lessons.moduleId, moduleId));
+
+    const total = countResult?.count ?? 0;
+
+    // Get paginated results with estimated time fields
     const result = await db
       .select({
         id: lessons.id,
         title: lessons.title,
         contentType: lessons.contentType,
+        estimatedTimeValue: lessons.estimatedTimeValue,
+        estimatedTimeUnit: lessons.estimatedTimeUnit,
         sortOrder: lessons.sortOrder,
         moduleId: lessons.moduleId,
         createdAt: lessons.createdAt,
@@ -81,13 +103,24 @@ export const lessonService = {
       })
       .from(lessons)
       .where(eq(lessons.moduleId, moduleId))
-      .orderBy(asc(lessons.sortOrder));
+      .orderBy(asc(lessons.sortOrder))
+      .limit(limit)
+      .offset(offset);
 
-    return result;
+    return {
+      data: result,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   /**
-   * Get a single lesson by ID with full content (content_body or video_url).
+   * Get a single lesson by ID with full content (content_body or video_url)
+   * and estimated time fields.
    * Throws 404 if not found.
    */
   async getById(id: string) {
@@ -105,7 +138,7 @@ export const lessonService = {
   },
 
   /**
-   * Update a lesson's fields.
+   * Update a lesson's fields including estimated time.
    * Throws 404 if not found.
    */
   async update(id: string, data: {
@@ -113,6 +146,8 @@ export const lessonService = {
     content_type?: 'text' | 'video';
     content_body?: string;
     video_url?: string;
+    estimated_time_value?: number | null;
+    estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
     // Check lesson exists
     const [existing] = await db
@@ -131,6 +166,8 @@ export const lessonService = {
     if (data.content_type !== undefined) updateData.contentType = data.content_type;
     if (data.content_body !== undefined) updateData.contentBody = data.content_body;
     if (data.video_url !== undefined) updateData.videoUrl = data.video_url;
+    if (data.estimated_time_value !== undefined) updateData.estimatedTimeValue = data.estimated_time_value;
+    if (data.estimated_time_unit !== undefined) updateData.estimatedTimeUnit = data.estimated_time_unit;
 
     const [updated] = await db
       .update(lessons)

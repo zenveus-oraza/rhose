@@ -218,7 +218,31 @@ This plan implements the learner-facing experience for the Rhose platform: dashb
     - Display learner name and profile link in navigation header
     - _Requirements: 9.4, 9.5, 9.8_
 
-- [ ] 14. Final checkpoint - All features integrated
+- [ ] 14. Frontend learner profile enhancements
+  - [ ] 14.1 Update learner profile page with phone and job title
+    - Update ProfilePage component to display phone number and job title fields
+    - Add phone and job title to edit form with validation
+    - Display profile picture with lazy loading (`loading="lazy"` attribute)
+    - Update profile service and backend to handle phone and job title updates
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
+
+- [ ] 15. Pagination and search for large lists in Learner Dashboard
+  - [ ] 15.1 Add pagination support to learner dashboard
+    - Backend: Update segment assignment list endpoint to support `page`, `limit`, `search` query parameters
+    - Frontend: Update useAssignedSegments hook to accept pagination params
+    - Update LearnerDashboard to show paginated segments with pagination UI (Previous/Next buttons, page info)
+    - Add search bar to filter segments by title
+    - Show "Page X of Y (Total Z items)" pagination info
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.7_
+
+- [ ] 16. Searchable dropdowns for large user/segment lists in assignment workflows
+  - [ ] 16.1 Create and integrate SearchableDropdown component (ongoing from M2)
+    - Frontend: Reuse SearchableDropdown component created in M2 for learner segment/user selection
+    - Implement keyboard navigation and accessibility
+    - Support search filtering and remote search
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
+
+- [ ] 17. Final checkpoint - All pagination and profile features integrated
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
@@ -247,7 +271,9 @@ This plan implements the learner-facing experience for the Rhose platform: dashb
     { "id": 7, "tasks": ["8.7", "10.1"] },
     { "id": 8, "tasks": ["11.1", "11.2", "11.3"] },
     { "id": 9, "tasks": ["12.1", "12.2"] },
-    { "id": 10, "tasks": ["13.1", "13.2"] }
+    { "id": 10, "tasks": ["13.1", "13.2"] },
+    { "id": 11, "tasks": ["14.1", "15.1"] },
+    { "id": 12, "tasks": ["16.1"] }
   ]
 }
 ```

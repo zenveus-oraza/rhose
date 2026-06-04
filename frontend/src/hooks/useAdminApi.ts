@@ -26,6 +26,7 @@ import type {
   ResetPasswordResponse,
   PaginatedResult,
   UserListParams,
+  SegmentListParams,
   Assignment,
   CreateAssignmentInput,
   SegmentAssignment,
@@ -42,22 +43,22 @@ export const adminKeys = {
   dashboardStats: () => [...adminKeys.dashboard(), 'stats'] as const,
 
   segments: () => [...adminKeys.all, 'segments'] as const,
-  segmentList: () => [...adminKeys.segments(), 'list'] as const,
+  segmentList: (params?: SegmentListParams) => [...adminKeys.segments(), 'list', params] as const,
   segmentDetail: (id: string) => [...adminKeys.segments(), 'detail', id] as const,
 
   modules: () => [...adminKeys.all, 'modules'] as const,
-  moduleList: (segmentId: string) => [...adminKeys.modules(), 'list', segmentId] as const,
+  moduleList: (segmentId: string, params?: { page?: number; limit?: number }) => [...adminKeys.modules(), 'list', segmentId, params] as const,
 
   lessons: () => [...adminKeys.all, 'lessons'] as const,
-  lessonList: (moduleId: string) => [...adminKeys.lessons(), 'list', moduleId] as const,
+  lessonList: (moduleId: string, params?: { page?: number; limit?: number }) => [...adminKeys.lessons(), 'list', moduleId, params] as const,
   lessonDetail: (id: string) => [...adminKeys.lessons(), 'detail', id] as const,
 
   users: () => [...adminKeys.all, 'users'] as const,
   userList: (params?: UserListParams) => [...adminKeys.users(), 'list', params] as const,
 
   assignments: () => [...adminKeys.all, 'assignments'] as const,
-  segmentAssignments: (segmentId: string) => [...adminKeys.assignments(), 'segment', segmentId] as const,
-  userAssignments: (userId: string) => [...adminKeys.assignments(), 'user', userId] as const,
+  segmentAssignments: (segmentId: string, params?: { page?: number; limit?: number }) => [...adminKeys.assignments(), 'segment', segmentId, params] as const,
+  userAssignments: (userId: string, params?: { page?: number; limit?: number }) => [...adminKeys.assignments(), 'user', userId, params] as const,
 };
 
 // --- Dashboard Hooks ---
@@ -75,11 +76,12 @@ export function useDashboardStats(
 // --- Segment Hooks ---
 
 export function useSegments(
-  options?: Omit<UseQueryOptions<Segment[], ApiError>, 'queryKey' | 'queryFn'>
+  params?: SegmentListParams,
+  options?: Omit<UseQueryOptions<PaginatedResult<Segment>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<Segment[], ApiError>({
-    queryKey: adminKeys.segmentList(),
-    queryFn: adminService.listSegments,
+  return useQuery<PaginatedResult<Segment>, ApiError>({
+    queryKey: adminKeys.segmentList(params),
+    queryFn: () => adminService.listSegments(params),
     ...options,
   });
 }
@@ -103,7 +105,7 @@ export function useCreateSegment(
   return useMutation<Segment, ApiError, CreateSegmentInput>({
     mutationFn: adminService.createSegment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.segmentList() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.segments() });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
     },
     ...options,
@@ -117,7 +119,7 @@ export function useUpdateSegment(
   return useMutation<Segment, ApiError, { id: string; data: UpdateSegmentInput }>({
     mutationFn: ({ id, data }) => adminService.updateSegment(id, data),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.segmentList() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.segments() });
       queryClient.invalidateQueries({ queryKey: adminKeys.segmentDetail(variables.id) });
     },
     ...options,
@@ -131,7 +133,7 @@ export function useDeleteSegment(
   return useMutation<void, ApiError, string>({
     mutationFn: adminService.deleteSegment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.segmentList() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.segments() });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
     },
     ...options,
@@ -142,11 +144,12 @@ export function useDeleteSegment(
 
 export function useModules(
   segmentId: string,
-  options?: Omit<UseQueryOptions<ModuleWithLessonCount[], ApiError>, 'queryKey' | 'queryFn'>
+  params?: { page?: number; limit?: number },
+  options?: Omit<UseQueryOptions<PaginatedResult<ModuleWithLessonCount>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<ModuleWithLessonCount[], ApiError>({
-    queryKey: adminKeys.moduleList(segmentId),
-    queryFn: () => adminService.listModules(segmentId),
+  return useQuery<PaginatedResult<ModuleWithLessonCount>, ApiError>({
+    queryKey: adminKeys.moduleList(segmentId, params),
+    queryFn: () => adminService.listModules(segmentId, params),
     enabled: !!segmentId,
     ...options,
   });
@@ -159,7 +162,7 @@ export function useCreateModule(
   return useMutation<Module, ApiError, { segmentId: string; data: CreateModuleInput }>({
     mutationFn: ({ segmentId, data }) => adminService.createModule(segmentId, data),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.moduleList(variables.segmentId) });
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules() });
       queryClient.invalidateQueries({ queryKey: adminKeys.segmentDetail(variables.segmentId) });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
     },
@@ -174,6 +177,7 @@ export function useUpdateModule(
   return useMutation<Module, ApiError, { id: string; data: UpdateModuleInput }>({
     mutationFn: ({ id, data }) => adminService.updateModule(id, data),
     onSuccess: (updatedModule) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules() });
       queryClient.invalidateQueries({ queryKey: adminKeys.moduleList(updatedModule.segmentId) });
     },
     ...options,
@@ -187,6 +191,7 @@ export function useReorderModules(
   return useMutation<void, ApiError, { segmentId: string; data: ReorderInput }>({
     mutationFn: ({ segmentId, data }) => adminService.reorderModules(segmentId, data),
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules() });
       queryClient.invalidateQueries({ queryKey: adminKeys.moduleList(variables.segmentId) });
     },
     ...options,
@@ -200,6 +205,7 @@ export function useDeleteModule(
   return useMutation<void, ApiError, { id: string; segmentId: string }>({
     mutationFn: ({ id }) => adminService.deleteModule(id),
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules() });
       queryClient.invalidateQueries({ queryKey: adminKeys.moduleList(variables.segmentId) });
       queryClient.invalidateQueries({ queryKey: adminKeys.segmentDetail(variables.segmentId) });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
@@ -212,11 +218,12 @@ export function useDeleteModule(
 
 export function useLessons(
   moduleId: string,
-  options?: Omit<UseQueryOptions<Lesson[], ApiError>, 'queryKey' | 'queryFn'>
+  params?: { page?: number; limit?: number },
+  options?: Omit<UseQueryOptions<PaginatedResult<Lesson>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<Lesson[], ApiError>({
-    queryKey: adminKeys.lessonList(moduleId),
-    queryFn: () => adminService.listLessons(moduleId),
+  return useQuery<PaginatedResult<Lesson>, ApiError>({
+    queryKey: adminKeys.lessonList(moduleId, params),
+    queryFn: () => adminService.listLessons(moduleId, params),
     enabled: !!moduleId,
     ...options,
   });
@@ -241,7 +248,9 @@ export function useCreateLesson(
   return useMutation<Lesson, ApiError, { moduleId: string; data: CreateLessonInput }>({
     mutationFn: ({ moduleId, data }) => adminService.createLesson(moduleId, data),
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.lessons() });
       queryClient.invalidateQueries({ queryKey: adminKeys.lessonList(variables.moduleId) });
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules(), refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
     },
     ...options,
@@ -256,6 +265,7 @@ export function useUpdateLesson(
     mutationFn: ({ id, data }) => adminService.updateLesson(id, data),
     onSuccess: (updatedLesson) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.lessonDetail(updatedLesson.id) });
+      queryClient.invalidateQueries({ queryKey: adminKeys.lessons() });
       queryClient.invalidateQueries({ queryKey: adminKeys.lessonList(updatedLesson.moduleId) });
     },
     ...options,
@@ -269,6 +279,7 @@ export function useReorderLessons(
   return useMutation<void, ApiError, { moduleId: string; data: ReorderInput }>({
     mutationFn: ({ moduleId, data }) => adminService.reorderLessons(moduleId, data),
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.lessons() });
       queryClient.invalidateQueries({ queryKey: adminKeys.lessonList(variables.moduleId) });
     },
     ...options,
@@ -282,7 +293,9 @@ export function useDeleteLesson(
   return useMutation<void, ApiError, { id: string; moduleId: string }>({
     mutationFn: ({ id }) => adminService.deleteLesson(id),
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.lessons() });
       queryClient.invalidateQueries({ queryKey: adminKeys.lessonList(variables.moduleId) });
+      queryClient.invalidateQueries({ queryKey: adminKeys.modules(), refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: adminKeys.dashboardStats() });
     },
     ...options,
@@ -355,11 +368,12 @@ export function useResetUserPassword(
 
 export function useSegmentAssignments(
   segmentId: string,
-  options?: Omit<UseQueryOptions<SegmentAssignment[], ApiError>, 'queryKey' | 'queryFn'>
+  params?: { page?: number; limit?: number },
+  options?: Omit<UseQueryOptions<PaginatedResult<SegmentAssignment>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<SegmentAssignment[], ApiError>({
-    queryKey: adminKeys.segmentAssignments(segmentId),
-    queryFn: () => adminService.listSegmentAssignments(segmentId),
+  return useQuery<PaginatedResult<SegmentAssignment>, ApiError>({
+    queryKey: adminKeys.segmentAssignments(segmentId, params),
+    queryFn: () => adminService.listSegmentAssignments(segmentId, params),
     enabled: !!segmentId,
     ...options,
   });
@@ -367,11 +381,12 @@ export function useSegmentAssignments(
 
 export function useUserAssignments(
   userId: string,
-  options?: Omit<UseQueryOptions<UserAssignment[], ApiError>, 'queryKey' | 'queryFn'>
+  params?: { page?: number; limit?: number },
+  options?: Omit<UseQueryOptions<PaginatedResult<UserAssignment>, ApiError>, 'queryKey' | 'queryFn'>
 ) {
-  return useQuery<UserAssignment[], ApiError>({
-    queryKey: adminKeys.userAssignments(userId),
-    queryFn: () => adminService.listUserAssignments(userId),
+  return useQuery<PaginatedResult<UserAssignment>, ApiError>({
+    queryKey: adminKeys.userAssignments(userId, params),
+    queryFn: () => adminService.listUserAssignments(userId, params),
     enabled: !!userId,
     ...options,
   });

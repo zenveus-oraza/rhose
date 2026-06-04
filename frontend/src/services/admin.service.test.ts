@@ -27,7 +27,7 @@ describe('admin.service', () => {
 
   describe('segments', () => {
     it('createSegment sends POST with body', async () => {
-      const input = { title: 'Test Segment', description: 'A description' };
+      const input = { title: 'Test Segment', description: 'A description', duration: 30 };
       const segment = { id: '1', ...input, status: 'draft', createdAt: '', updatedAt: '' };
       mockApiClient.mockResolvedValue(segment);
 

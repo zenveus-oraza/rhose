@@ -1,9 +1,10 @@
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segments } from '../db/schema/segments.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
 import type { SegmentStatus } from '../schemas/segment.schemas.js';
+import type { PaginatedResult } from './user-management.service.js';
 
 /**
  * Valid status transitions for segments.
@@ -22,12 +23,13 @@ export const segmentService = {
   /**
    * Create a new segment with default status "draft".
    */
-  async create(data: { title: string; description?: string }) {
+  async create(data: { title: string; description?: string; duration: number }) {
     const [segment] = await db
       .insert(segments)
       .values({
         title: data.title,
         description: data.description ?? null,
+        duration: data.duration,
       })
       .returning();
 
@@ -35,15 +37,70 @@ export const segmentService = {
   },
 
   /**
-   * List all segments ordered by created_at descending.
+   * List segments with pagination and optional search and status filter.
+   * Search is case-insensitive partial match on title or description.
+   * Ordered by created_at descending.
    */
-  async list() {
-    const result = await db
-      .select()
-      .from(segments)
-      .orderBy(desc(segments.createdAt));
+  async list(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: SegmentStatus | 'all';
+  }): Promise<PaginatedResult<any>> {
+    const page = params?.page ?? 1;
+    const limit = params?.limit ?? 20;
+    const offset = (page - 1) * limit;
 
-    return result;
+    // Build where conditions
+    const conditions = [];
+
+    if (params?.search) {
+      conditions.push(
+        sql`(${segments.title} ILIKE ${`%${params.search}%`} OR ${segments.description} ILIKE ${`%${params.search}%`})`
+      );
+    }
+
+    if (params?.status && params.status !== 'all') {
+      conditions.push(eq(segments.status, params.status));
+    }
+
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(segments)
+      .where(whereCondition);
+
+    const total = countResult?.count ?? 0;
+
+    // Get paginated results with module count per segment
+    const result = await db
+      .select({
+        id: segments.id,
+        title: segments.title,
+        description: segments.description,
+        duration: segments.duration,
+        status: segments.status,
+        createdAt: segments.createdAt,
+        updatedAt: segments.updatedAt,
+        moduleCount: sql<number>`(SELECT count(*)::int FROM "modules" WHERE "modules"."segment_id" = "segments"."id")`,
+      })
+      .from(segments)
+      .where(whereCondition)
+      .orderBy(desc(segments.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      data: result,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   /**
@@ -74,11 +131,11 @@ export const segmentService = {
   },
 
   /**
-   * Update a segment's title, description, and/or status.
+   * Update a segment's title, description, duration, and/or status.
    * If status is provided, validates the transition.
    * Throws 404 if not found.
    */
-  async update(id: string, data: { title?: string; description?: string; status?: SegmentStatus }) {
+  async update(id: string, data: { title?: string; description?: string; duration?: number; status?: SegmentStatus }) {
     // Fetch existing segment
     const [existing] = await db
       .select()
@@ -117,6 +174,7 @@ export const segmentService = {
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.duration !== undefined) updateData.duration = data.duration;
     if (data.status !== undefined) updateData.status = data.status;
 
     const [updated] = await db

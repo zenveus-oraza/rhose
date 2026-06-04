@@ -1,81 +1,127 @@
-import { useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search, X, Bell } from 'lucide-react';
-import { useSegments, useUsers, useCreateAssignment } from '@/hooks/useAdminApi';
-import { LoadingIndicator, ErrorMessage, SuccessModal, StatusBadge } from '@/components/shared';
-import type { UserProfile } from '@/types/admin';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Search, Bell } from 'lucide-react';
+import {
+  useSegments,
+  useUsers,
+  useCreateAssignment,
+  useSegmentAssignments,
+} from '@/hooks/useAdminApi';
+import { LoadingIndicator, ErrorMessage, SuccessModal } from '@/components/shared';
+import type { UserProfile, Segment } from '@/types/admin';
 
 export function AssignTrainingPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const preselectedUserId = searchParams.get('userId');
 
-  const { data: segments, isLoading: segmentsLoading } = useSegments();
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
+  // Segment selection
+  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const { data: segmentsData, isLoading: segmentsLoading } = useSegments({ limit: 100 });
+
+  // Users list with pagination for infinite scroll
+  const [userPage, setUserPage] = useState(1);
+  const [userSearch, setUserSearch] = useState('');
+  const [jobTitleFilter, setJobTitleFilter] = useState('');
+  const { data: usersData, isLoading: usersLoading } = useUsers({
+    page: userPage,
+    limit: 50,
+    search: userSearch || undefined,
+  });
+
+  // Get existing assignments for selected segment to filter out already-assigned users
+  const { data: existingAssignments } = useSegmentAssignments(
+    selectedSegment?.id ?? '',
+    { limit: 200 }
+  );
+
   const createAssignmentMutation = useCreateAssignment();
 
   // Form state
-  const [selectedSegmentId, setSelectedSegmentId] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState<UserProfile[]>(() => {
-    return [];
-  });
-  const [userSearch, setUserSearch] = useState('');
-  const [sendNotification, setSendNotification] = useState(true);
-  const [durationDays, setDurationDays] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [sendNotification, setSendNotification] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
 
   // UI state
   const [showSuccess, setShowSuccess] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [isAssigning, setIsAssigning] = useState(false);
 
-  // Pre-select user if userId is in URL params
-  useState(() => {
-    if (preselectedUserId && usersData?.data) {
-      const user = usersData.data.find((u) => u.id === preselectedUserId);
-      if (user && !selectedUsers.find((u) => u.id === user.id)) {
-        setSelectedUsers([user]);
+  // Accumulated users from all loaded pages (for infinite scroll)
+  const [allLoadedUsers, setAllLoadedUsers] = useState<UserProfile[]>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset loaded users on search/filter change
+  useEffect(() => {
+    setUserPage(1);
+    setAllLoadedUsers([]);
+  }, [userSearch, jobTitleFilter]);
+
+  // Append new page data
+  useEffect(() => {
+    if (usersData?.data) {
+      if (userPage === 1) {
+        setAllLoadedUsers(usersData.data);
+      } else {
+        setAllLoadedUsers((prev) => {
+          const existingIds = new Set(prev.map((u) => u.id));
+          const newUsers = usersData.data.filter((u) => !existingIds.has(u.id));
+          return [...prev, ...newUsers];
+        });
       }
     }
-  });
+  }, [usersData?.data, userPage]);
 
+  // Filter users: remove already-assigned, apply job title filter
   const filteredUsers = useMemo(() => {
-    if (!usersData?.data) return [];
-    const search = userSearch.toLowerCase();
-    return usersData.data
-      .filter((u) => u.status === 'active')
-      .filter(
-        (u) =>
-          !search ||
-          u.name.toLowerCase().includes(search) ||
-          u.email.toLowerCase().includes(search)
-      );
-  }, [usersData?.data, userSearch]);
-
-  const toggleUser = (user: UserProfile) => {
-    setSelectedUsers((prev) =>
-      prev.find((u) => u.id === user.id)
-        ? prev.filter((u) => u.id !== user.id)
-        : [...prev, user]
+    const assignedUserIds = new Set(
+      existingAssignments?.data?.map((a) => a.userId) ?? []
     );
-  };
 
-  const removeUser = (userId: string) => {
-    setSelectedUsers((prev) => prev.filter((u) => u.id !== userId));
+    return allLoadedUsers
+      .filter((u) => u.status === 'active' && u.role === 'learner')
+      .filter((u) => !assignedUserIds.has(u.id))
+      .filter((u) => {
+        if (!jobTitleFilter) return true;
+        return u.jobTitle?.toLowerCase().includes(jobTitleFilter.toLowerCase());
+      });
+  }, [allLoadedUsers, existingAssignments?.data, jobTitleFilter]);
+
+  // Infinite scroll handler
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || usersLoading) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    if (scrollTop + clientHeight >= scrollHeight - 100) {
+      if (usersData?.pagination && userPage < usersData.pagination.totalPages) {
+        setUserPage((p) => p + 1);
+      }
+    }
+  }, [usersLoading, usersData?.pagination, userPage]);
+
+  const toggleUser = (userId: string) => {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
   };
 
   const handleAssign = async () => {
-    if (!selectedSegmentId || selectedUsers.length === 0) return;
+    if (!selectedSegment || selectedUserIds.size === 0) return;
 
     setIsAssigning(true);
     setAssignError(null);
 
     try {
-      for (const user of selectedUsers) {
+      for (const userId of selectedUserIds) {
         await createAssignmentMutation.mutateAsync({
-          user_id: user.id,
-          segment_id: selectedSegmentId,
-          access_duration_days: durationDays ? parseInt(durationDays, 10) : undefined,
+          user_id: userId,
+          segment_id: selectedSegment.id,
         });
       }
       setShowSuccess(true);
@@ -88,7 +134,7 @@ export function AssignTrainingPage() {
     }
   };
 
-  const activeSegments = segments?.filter((s) => s.status === 'active') ?? [];
+  const activeSegments = segmentsData?.data?.filter((s) => s.status === 'active') ?? [];
 
   return (
     <div className="py-4 lg:px-8">
@@ -102,17 +148,17 @@ export function AssignTrainingPage() {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-heading-page text-navy">Assign Training</h1>
+          <h1 className="text-xl font-bold text-navy">Assign Training</h1>
         </div>
       </div>
       <div className="border-b border-muted-200 mb-6" />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        {/* Left: Segment Selection & User List */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Segment Selector */}
+      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+        {/* Left Column: Segment + Assign Button */}
+        <div className="space-y-6">
+          {/* Select Segment */}
           <div className="rounded-xl border border-muted-200 bg-white p-6">
-            <h2 className="text-heading-card text-navy">Select Segment</h2>
+            <h2 className="text-base font-semibold text-navy">Select Segment</h2>
             <p className="mt-1 text-helper text-muted-500">
               Choose the segment to assign users to.
             </p>
@@ -122,173 +168,42 @@ export function AssignTrainingPage() {
               </div>
             ) : (
               <select
-                value={selectedSegmentId}
-                onChange={(e) => setSelectedSegmentId(e.target.value)}
-                className="mt-3 w-full appearance-none rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                value={selectedSegment?.id ?? ''}
+                onChange={(e) => {
+                  const seg = activeSegments.find((s) => s.id === e.target.value) ?? null;
+                  setSelectedSegment(seg);
+                  setSelectedUserIds(new Set());
+                }}
+                className="mt-3 w-full rounded-lg border border-muted-200 bg-white px-4 py-2.5 text-sm text-navy focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
               >
-                <option value="">Select a segment...</option>
-                {activeSegments.map((segment) => (
-                  <option key={segment.id} value={segment.id}>
-                    {segment.title}
+                <option value="">— Select a segment —</option>
+                {activeSegments.map((seg) => (
+                  <option key={seg.id} value={seg.id}>
+                    {seg.title}
                   </option>
                 ))}
               </select>
             )}
-            {selectedSegmentId && (
-              <div className="mt-2">
-                <StatusBadge
-                  status={
-                    activeSegments.find((s) => s.id === selectedSegmentId)?.status ?? 'active'
-                  }
-                />
-              </div>
-            )}
           </div>
 
-          {/* User Selection */}
+          {/* Error */}
+          {assignError && <ErrorMessage message={assignError} />}
+
+          {/* Notification */}
           <div className="rounded-xl border border-muted-200 bg-white p-6">
-            <h2 className="text-heading-card text-navy">Select Users</h2>
-            <p className="mt-1 text-helper text-muted-500">
-              Choose users to assign to the selected segment.
-            </p>
-
-            {/* Search */}
-            <div className="relative mt-3">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-400" />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full rounded-xl border border-muted-200 bg-white py-2.5 pl-9 pr-4 text-helper text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-              />
-            </div>
-
-            {/* User List */}
-            {usersLoading ? (
-              <div className="mt-4">
-                <LoadingIndicator size="sm" />
+            <div className="flex items-center justify-between cursor-pointer" onClick={() => setSendNotification(!sendNotification)}>
+              <div className="flex items-center gap-2">
+                <Bell size={16} className="text-muted-500" />
+                <span className="text-helper font-medium text-muted-700">
+                  Notify Users Via Email
+                </span>
               </div>
-            ) : (
-              <div className="mt-3 max-h-72 space-y-1 overflow-y-auto">
-                {filteredUsers.map((user) => {
-                  const isSelected = selectedUsers.some((u) => u.id === user.id);
-                  return (
-                    <label
-                      key={user.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
-                        isSelected
-                          ? 'border-teal-200 bg-teal-50'
-                          : 'border-muted-200 hover:bg-muted-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleUser(user)}
-                        className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-primary"
-                      />
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-primary text-helper font-medium">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-body font-medium text-navy truncate">{user.name}</p>
-                        <p className="text-helper text-muted-500 truncate">{user.email}</p>
-                      </div>
-                      <span className="text-helper text-muted-400 capitalize">{user.role}</span>
-                    </label>
-                  );
-                })}
-                {filteredUsers.length === 0 && (
-                  <p className="py-4 text-center text-helper text-muted-500">
-                    No users found.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Duration & Date */}
-          <div className="rounded-xl border border-muted-200 bg-white p-6">
-            <h2 className="text-heading-card text-navy">Duration & Schedule</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="duration" className="block text-helper font-medium text-muted-700">
-                  Access Duration (days)
-                </label>
-                <input
-                  id="duration"
-                  type="number"
-                  min="1"
-                  value={durationDays}
-                  onChange={(e) => setDurationDays(e.target.value)}
-                  placeholder="e.g. 30"
-                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-                />
-              </div>
-              <div>
-                <label htmlFor="dueDate" className="block text-helper font-medium text-muted-700">
-                  Due Date
-                </label>
-                <input
-                  id="dueDate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-muted-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Selected Users Panel & Actions */}
-        <div className="space-y-6">
-          {/* Selected Users */}
-          <div className="rounded-xl border border-muted-200 bg-white p-6">
-            <h3 className="text-heading-card text-navy">
-              Selected Users ({selectedUsers.length})
-            </h3>
-            {selectedUsers.length > 0 ? (
-              <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-                {selectedUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between rounded-lg bg-muted-50 px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-primary text-xs font-medium">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-helper font-medium text-navy truncate">
-                        {user.name}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeUser(user.id)}
-                      className="shrink-0 rounded p-1 text-muted-400 hover:text-danger-500 transition-colors"
-                      aria-label={`Remove ${user.name}`}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-helper text-muted-500">
-                No users selected yet.
-              </p>
-            )}
-          </div>
-
-          {/* Notification Toggle */}
-          <div className="rounded-xl border border-muted-200 bg-white p-6">
-            <label className="flex items-center gap-3 cursor-pointer">
               <div
                 className={`relative h-6 w-11 rounded-full transition-colors ${
                   sendNotification ? 'bg-teal' : 'bg-muted-300'
                 }`}
-                onClick={() => setSendNotification(!sendNotification)}
+                role="switch"
+                aria-checked={sendNotification}
               >
                 <div
                   className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
@@ -296,26 +211,45 @@ export function AssignTrainingPage() {
                   }`}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <Bell size={16} className="text-muted-500" />
-                <span className="text-helper font-medium text-muted-700">
-                  Send notification email
-                </span>
-              </div>
-            </label>
-            <p className="mt-2 text-helper text-muted-400 ml-14">
-              Notify selected users about their new assignment.
-            </p>
-          </div>
+            </div>
 
-          {/* Error */}
-          {assignError && <ErrorMessage message={assignError} />}
+            {sendNotification && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label htmlFor="email-subject" className="block text-helper font-medium text-muted-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    id="email-subject"
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Training assignment notification"
+                    className="w-full rounded-lg border border-muted-200 bg-white px-4 py-2 text-sm text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email-body" className="block text-helper font-medium text-muted-700 mb-1">
+                    Body
+                  </label>
+                  <textarea
+                    id="email-body"
+                    rows={5}
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="You have been assigned a new training segment..."
+                    className="w-full rounded-lg border border-muted-200 bg-white px-4 py-2 text-sm text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors resize-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Assign Button */}
           <button
             onClick={handleAssign}
-            disabled={!selectedSegmentId || selectedUsers.length === 0 || isAssigning}
-            className="w-full rounded-xl bg-secondary px-5 py-3 text-body font-medium text-white hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!selectedSegment || selectedUserIds.size === 0 || isAssigning}
+            className="w-full rounded-xl bg-secondary px-5 py-3 text-sm font-medium text-white hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isAssigning ? (
               <span className="flex items-center justify-center gap-2">
@@ -323,9 +257,88 @@ export function AssignTrainingPage() {
                 Assigning...
               </span>
             ) : (
-              `Assign ${selectedUsers.length} User${selectedUsers.length !== 1 ? 's' : ''}`
+              `Assign ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`
             )}
           </button>
+        </div>
+
+        {/* Right Column: User Selection + Notification */}
+        <div className="rounded-xl border border-muted-200 bg-white shadow-sm flex flex-col" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+          {/* Header */}
+          <div className="border-b border-muted-200 px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-navy">Select Users</h2>
+              {selectedUserIds.size > 0 && (
+                <span className="text-helper font-medium text-teal">
+                  {selectedUserIds.size} user{selectedUserIds.size !== 1 ? 's' : ''} selected
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-400" />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full rounded-lg border border-muted-200 bg-white py-2 pl-9 pr-4 text-sm text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Filter by job title"
+                value={jobTitleFilter}
+                onChange={(e) => setJobTitleFilter(e.target.value)}
+                className="w-40 rounded-lg border border-muted-200 bg-white px-3 py-2 text-sm text-muted-800 placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* User List with infinite scroll */}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto divide-y divide-muted-100"
+          >
+            {filteredUsers.map((user) => {
+              const isSelected = selectedUserIds.has(user.id);
+              return (
+                <label
+                  key={user.id}
+                  className={`flex cursor-pointer items-center gap-3 px-6 py-3 transition-colors ${
+                    isSelected ? 'bg-teal-50' : 'hover:bg-muted-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleUser(user.id)}
+                    className="h-4 w-4 rounded border-muted-300 text-teal focus:ring-primary"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-navy truncate">{user.name}</p>
+                    <p className="text-helper text-muted-500 truncate">{user.email}</p>
+                  </div>
+                  {user.jobTitle && (
+                    <span className="text-helper text-muted-500 shrink-0">{user.jobTitle}</span>
+                  )}
+                </label>
+              );
+            })}
+
+            {usersLoading && (
+              <div className="py-4 flex justify-center">
+                <LoadingIndicator size="sm" />
+              </div>
+            )}
+
+            {!usersLoading && filteredUsers.length === 0 && (
+              <p className="py-8 text-center text-helper text-muted-500">
+                {selectedSegment ? 'No users available for this segment.' : 'Select a segment first to see available users.'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -334,7 +347,7 @@ export function AssignTrainingPage() {
         open={showSuccess}
         onOpenChange={setShowSuccess}
         title="Training Assigned Successfully"
-        description={`${selectedUsers.length} user${selectedUsers.length !== 1 ? 's have' : ' has'} been assigned to the selected segment.`}
+        description={`${selectedUserIds.size} user${selectedUserIds.size !== 1 ? 's have' : ' has'} been assigned to the selected segment.`}
         actionLabel="Go to User Management"
         onAction={() => {
           setShowSuccess(false);
@@ -343,8 +356,8 @@ export function AssignTrainingPage() {
         secondaryActionLabel="Assign More"
         onSecondaryAction={() => {
           setShowSuccess(false);
-          setSelectedUsers([]);
-          setSelectedSegmentId('');
+          setSelectedUserIds(new Set());
+          setSelectedSegment(null);
         }}
       />
     </div>

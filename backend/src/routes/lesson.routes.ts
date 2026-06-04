@@ -17,6 +17,7 @@ export const moduleLessonRouter = Router({ mergeParams: true });
 /**
  * POST /api/admin/modules/:moduleId/lessons
  * Create a new lesson within a module with auto-assigned sort_order.
+ * Supports content_type-specific fields and estimated time.
  */
 moduleLessonRouter.post(
   '/',
@@ -29,6 +30,8 @@ moduleLessonRouter.post(
         content_type: data.content_type,
         content_body: data.content_body,
         video_url: data.video_url,
+        estimated_time_value: data.estimated_time_value ?? undefined,
+        estimated_time_unit: data.estimated_time_unit ?? undefined,
       });
       sendSuccess(res, lesson, 201);
     } catch (error) {
@@ -39,15 +42,21 @@ moduleLessonRouter.post(
 
 /**
  * GET /api/admin/modules/:moduleId/lessons
- * List all lessons in a module ordered by sort_order ascending.
+ * List lessons in a module with pagination, ordered by sort_order ascending.
+ * Includes estimated time fields.
+ * Query params: page, limit
  */
 moduleLessonRouter.get(
   '/',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const moduleId = req.params.moduleId as string;
-      const lessons = await lessonService.listByModule(moduleId);
-      sendSuccess(res, lessons);
+      const { page, limit } = req.query;
+      const result = await lessonService.listByModule(moduleId, {
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      });
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
@@ -80,7 +89,7 @@ export const lessonRouter = Router();
 
 /**
  * GET /api/admin/lessons/:id
- * Get a single lesson with full content (content_body or video_url).
+ * Get a single lesson with full content (content_body or video_url) and estimated time.
  */
 lessonRouter.get(
   '/:id',
@@ -97,7 +106,7 @@ lessonRouter.get(
 
 /**
  * PUT /api/admin/lessons/:id
- * Update a lesson's fields.
+ * Update a lesson's fields including estimated time.
  */
 lessonRouter.put(
   '/:id',
