@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient, ApiError } from '@/services/api';
@@ -26,6 +26,21 @@ export function ProfilePage() {
   const [jobTitle, setJobTitle] = useState(user?.jobTitle ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [profileLoading, setProfileLoading] = useState(false);
+
+  // Refresh profile data when navigating to this page or after login
+  useEffect(() => {
+    refreshUser();
+  }, [refreshUser]);
+
+  // Sync local form state when user data updates (e.g., after profile fetch completes)
+  useEffect(() => {
+    if (user && !isEditing) {
+      setName(user.name ?? '');
+      setEmail(user.email ?? '');
+      setJobTitle(user.jobTitle ?? '');
+      setPhone(user.phone ?? '');
+    }
+  }, [user, isEditing]);
 
   // Password tab state
   const [currentPassword, setCurrentPassword] = useState('');
