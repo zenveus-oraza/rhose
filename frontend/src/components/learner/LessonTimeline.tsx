@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, Clock, FileText, Lock, Video } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, FileText, Lock, Presentation, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LessonWithStatus } from '@/types/learner';
 
@@ -39,6 +39,9 @@ export function LessonTimeline({ lessons, onLessonSelect }: LessonTimelineProps)
 
     if (contentType?.toLowerCase() === 'video') {
       return <Video className={iconClass} />;
+    }
+    if (contentType?.toLowerCase() === 'slides') {
+      return <Presentation className={iconClass} />;
     }
     return <FileText className={iconClass} />;
   };

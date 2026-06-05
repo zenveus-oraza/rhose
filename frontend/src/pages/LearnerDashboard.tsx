@@ -1,23 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { BookOpen, Clock, PlayCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useAssignedSegments } from '@/hooks/useLearner';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle2, Clock, ChevronRight, Lock } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { useAssignedSegments, useSegmentDetail, useCurrentLesson } from '@/hooks/useLearner';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import type { LearnerSegment } from '@/types/learner';
-
-// --- Debounce Hook ---
-
-function useDebounce(value: string, delay: number): string {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import type { ModuleSummary } from '@/types/learner';
 
 // --- Sub-components ---
 
@@ -32,182 +20,57 @@ function ProgressBar({ percentage }: { percentage: number }) {
   );
 }
 
-function AccessBadge({ status }: { status: 'active' | 'expired' }) {
-  const styles = {
-    active: 'bg-success-50 text-success-700 border-success-200',
-    expired: 'bg-warning-50 text-warning-700 border-warning-200',
-  };
+function SegmentDetailsCards({ segment }: { segment: LearnerSegment }) {
+  const assignedDate = new Date(segment.assigned_at);
+  const durationWeeks = 4;
+  const deadline = new Date(assignedDate.getTime() + durationWeeks * 7 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const deadlineStr = deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${styles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function SegmentCard({ segment }: { segment: LearnerSegment }) {
-  const isExpired = segment.access_status === 'expired';
-
-  return (
-    <div className="bg-white rounded-xl border border-muted-200 shadow-sm p-6 flex flex-col gap-4 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-heading-card text-navy line-clamp-2">{segment.title}</h3>
-        <AccessBadge status={segment.access_status} />
+    <div className="flex gap-4">
+      <div className="flex flex-col border border-muted-200 rounded-lg px-5 py-3 min-w-[120px]">
+        <span className="text-xs text-muted-500">Duration:</span>
+        <span className="text-base font-semibold text-navy">{durationWeeks} Weeks</span>
       </div>
-
-      {segment.description && (
-        <p className="text-helper text-muted-500 line-clamp-2">{segment.description}</p>
-      )}
-
-      {/* Progress section */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-helper text-muted-600 font-medium">
-            {segment.progress_percentage}% complete
-          </span>
-          <span className="text-helper text-muted-500">
-            {segment.completed_lessons}/{segment.total_lessons} lessons
-          </span>
-        </div>
-        <ProgressBar percentage={segment.progress_percentage} />
+      <div className="flex flex-col border border-muted-200 rounded-lg px-5 py-3 min-w-[120px]">
+        <span className="text-xs text-muted-500">Deadline:</span>
+        <span className="text-base font-semibold text-navy">{deadlineStr}</span>
       </div>
-
-      {/* Detail cards row */}
-      <div className="grid grid-cols-3 gap-2 mt-1">
-        <div className="flex flex-col items-center gap-1 rounded-lg bg-muted-50 px-2 py-2.5">
-          <BookOpen className="h-4 w-4 text-teal" aria-hidden="true" />
-          <span className="text-xs text-muted-600 text-center">
-            {segment.total_lessons} lessons
-          </span>
-        </div>
-        <div className="flex flex-col items-center gap-1 rounded-lg bg-muted-50 px-2 py-2.5">
-          <Clock className="h-4 w-4 text-teal" aria-hidden="true" />
-          <span className="text-xs text-muted-600 text-center">
-            {segment.access_status === 'active' ? 'Active' : 'Expired'}
-          </span>
-        </div>
-        <div className="flex flex-col items-center gap-1 rounded-lg bg-muted-50 px-2 py-2.5">
-          <PlayCircle className="h-4 w-4 text-teal" aria-hidden="true" />
-          <span className="text-xs text-muted-600 text-center">
-            {segment.completed_lessons} done
-          </span>
-        </div>
+      <div className="flex flex-col border border-muted-200 rounded-lg px-5 py-3 min-w-[120px]">
+        <span className="text-xs text-muted-500">Time Left:</span>
+        <span className="text-base font-semibold text-navy">{daysLeft} Days</span>
       </div>
-
-      {/* Resume action */}
-      <Link
-        to={`/learner/segments/${segment.segmentId}`}
-        className={`mt-auto inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-body font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-          isExpired
-            ? 'bg-muted-200 text-muted-500 cursor-not-allowed pointer-events-none'
-            : 'bg-secondary text-white hover:bg-secondary/90 focus:ring-secondary'
-        }`}
-        aria-disabled={isExpired}
-        tabIndex={isExpired ? -1 : undefined}
-      >
-        <PlayCircle className="h-4 w-4" aria-hidden="true" />
-        {segment.progress_percentage > 0 ? 'Resume' : 'Start'}
-      </Link>
     </div>
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <BookOpen className="h-16 w-16 text-muted-300 mb-4" aria-hidden="true" />
-      <h2 className="text-heading-section text-navy mb-2">No training assigned yet</h2>
-      <p className="text-body text-muted-500 max-w-md">
-        You don't have any training segments assigned. Once your administrator assigns training to you, it will appear here.
-      </p>
-    </div>
-  );
-}
-
-function SearchBar({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="relative max-w-md">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-400" aria-hidden="true" />
-      <input
-        type="search"
-        placeholder="Search segments by title..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-muted-200 bg-white py-2.5 pl-10 pr-4 text-body text-navy placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal/20"
-        aria-label="Search segments"
-      />
-    </div>
-  );
-}
-
-function PaginationControls({
-  page,
-  totalPages,
-  total,
-  onPrevious,
-  onNext,
-}: {
-  page: number;
-  totalPages: number;
-  total: number;
-  onPrevious: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between mt-8">
-      <p className="text-body text-muted-600">
-        Page {page} of {totalPages} (Total {total} items)
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onPrevious}
-          disabled={page <= 1}
-          className="inline-flex items-center gap-1.5 rounded-md border border-muted-200 bg-white px-3 py-2 text-sm font-medium text-navy transition hover:bg-muted-50 focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          Previous
-        </button>
-        <button
-          onClick={onNext}
-          disabled={page >= totalPages}
-          className="inline-flex items-center gap-1.5 rounded-md border border-muted-200 bg-white px-3 py-2 text-sm font-medium text-navy transition hover:bg-muted-50 focus:outline-none focus:ring-2 focus:ring-teal/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-          aria-label="Next page"
-        >
-          Next
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-  );
+function ModuleStatusIcon({ module }: { module: ModuleSummary }) {
+  if (!module.accessible) {
+    return <Lock className="h-5 w-5 text-gray-400 shrink-0" />;
+  }
+  if (module.completedCount === module.lessonCount && module.lessonCount > 0) {
+    return <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />;
+  }
+  if (module.completedCount > 0) {
+    return <Clock className="h-5 w-5 text-cyan-500 shrink-0" />;
+  }
+  return <div className="h-5 w-5 rounded-full border-2 border-muted-300 shrink-0" />;
 }
 
 // --- Main Component ---
 
 export function LearnerDashboard() {
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');
-  const debouncedSearch = useDebounce(searchInput, 300);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  // Reset to page 1 when search changes
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInput(value);
-    setPage(1);
-  }, []);
+  const { data, isLoading, error, refetch } = useAssignedSegments({ page: 1, limit: 1 });
 
-  const { data, isLoading, error, refetch } = useAssignedSegments({
-    page,
-    limit: 10,
-    search: debouncedSearch || undefined,
-  });
+  const activeSegment = data?.segments?.find((s) => s.access_status === 'active') ?? data?.segments?.[0];
+
+  const { data: segmentDetailData } = useSegmentDetail(activeSegment?.segmentId ?? '');
+  const { data: currentLessonData } = useCurrentLesson(activeSegment?.segmentId ?? '');
 
   if (isLoading && !data) {
     return (
@@ -228,47 +91,111 @@ export function LearnerDashboard() {
     );
   }
 
-  const segments = data?.segments ?? [];
-  const pagination = data?.pagination;
+  if (!activeSegment) {
+    return (
+      <div className="pb-4 pt-1 lg:px-8">
+        <div className="mb-2">
+          <p className="text-body text-muted-500">Welcome back, <span className="font-semibold text-navy">{user?.name || 'Learner'}</span> 👋</p>
+          <h1 className="text-heading-page text-navy">Your Active Training</h1>
+        </div>
+        <div className="border-b border-muted-200 mb-6" />
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <h2 className="text-lg font-semibold text-navy mb-2">No training assigned yet</h2>
+          <p className="text-sm text-muted-500 max-w-md">
+            You don't have any training segments assigned. Once your administrator assigns training to you, it will appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const segment = segmentDetailData?.segment;
+  const sortedModules = segment?.modules
+    ? [...segment.modules].sort((a, b) => a.sortOrder - b.sortOrder)
+    : [];
+
+  const handleResume = () => {
+    if (currentLessonData?.currentLesson) {
+      const { moduleId, lessonId } = currentLessonData.currentLesson;
+      navigate(`/learner/segments/${activeSegment.segmentId}/modules/${moduleId}/lessons/${lessonId}`);
+    } else {
+      navigate(`/learner/learning`);
+    }
+  };
 
   return (
-    <div className="p-8">
-      <div className="flex flex-col gap-6 mb-8">
+    <div className="pb-4 pt-1 lg:px-8">
+      {/* Welcome and heading */}
+      <div className="mb-2">
+        <p className="text-body text-muted-500">
+          Welcome back, <span className="font-semibold text-navy">{user?.name || 'Learner'}</span> 👋
+        </p>
         <h1 className="text-heading-page text-navy">Your Active Training</h1>
-        <SearchBar value={searchInput} onChange={handleSearchChange} />
       </div>
 
-      {segments.length === 0 ? (
-        debouncedSearch ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Search className="h-16 w-16 text-muted-300 mb-4" aria-hidden="true" />
-            <h2 className="text-heading-section text-navy mb-2">No results found</h2>
-            <p className="text-body text-muted-500 max-w-md">
-              No segments match "{debouncedSearch}". Try a different search term.
-            </p>
-          </div>
-        ) : (
-          <EmptyState />
-        )
-      ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {segments.map((segment) => (
-              <SegmentCard key={segment.segmentId} segment={segment} />
-            ))}
-          </div>
+      {/* Divider */}
+      <div className="border-b border-muted-200 mb-6" />
 
-          {pagination && pagination.totalPages > 1 && (
-            <PaginationControls
-              page={pagination.page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-            />
-          )}
-        </>
-      )}
+      {/* Segment title and description */}
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-teal mb-2">{activeSegment.title}</h2>
+        {activeSegment.description && (
+          <p className="text-sm text-muted-600 leading-relaxed">{activeSegment.description}</p>
+        )}
+      </div>
+
+      {/* Progress card */}
+      <div className="border border-muted-200 rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-navy">Progress</span>
+          <span className="text-sm font-semibold text-teal">{activeSegment.progress_percentage}%</span>
+        </div>
+        <ProgressBar percentage={activeSegment.progress_percentage} />
+        <p className="text-xs text-muted-500 mt-2">
+          {activeSegment.completed_lessons} of {activeSegment.total_lessons} Lessons completed
+        </p>
+      </div>
+
+      {/* Resume Lesson button */}
+      <button
+        onClick={handleResume}
+        className="bg-secondary text-white font-medium px-6 py-3 rounded-lg hover:bg-secondary/90 transition-colors mb-8"
+      >
+        Resume Lesson
+      </button>
+
+      {/* Segment Details */}
+      <div className="mb-8">
+        <h3 className="text-base font-semibold text-navy mb-4">Segment Details</h3>
+        <SegmentDetailsCards segment={activeSegment} />
+      </div>
+
+      {/* Segment Content — Module overview (non-expandable, just status list) */}
+      <div>
+        <h3 className="text-base font-semibold text-navy mb-4">Segment Content</h3>
+        <div className="flex flex-col gap-3">
+          {sortedModules.map((mod, index) => (
+            <div
+              key={mod.id}
+              className={`border border-muted-200 rounded-lg bg-white px-5 py-4 flex items-center gap-3 transition-colors ${
+                mod.accessible
+                  ? 'cursor-pointer hover:bg-muted-50'
+                  : 'opacity-60 cursor-not-allowed'
+              }`}
+              onClick={() => mod.accessible && navigate(`/learner/learning`)}
+            >
+              <ChevronRight className={`h-4 w-4 shrink-0 ${mod.accessible ? 'text-muted-400' : 'text-muted-300'}`} />
+              <div className="flex-1 min-w-0">
+                <span className={`text-sm font-medium ${mod.accessible ? 'text-navy' : 'text-muted-400'}`}>
+                  MODULES {index + 1}:{' '}
+                </span>
+                <span className={`text-sm ${mod.accessible ? 'text-navy' : 'text-muted-400'}`}>{mod.title}</span>
+              </div>
+              <ModuleStatusIcon module={mod} />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

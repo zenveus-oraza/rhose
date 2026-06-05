@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Upload, FileCheck } from 'lucide-react';
 import { Drawer } from '@/components/ui/Drawer';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
-import { useCreateLesson, useUpdateLesson } from '@/hooks/useAdminApi';
+import { useCreateLesson, useUpdateLesson, useLesson } from '@/hooks/useAdminApi';
+import { uploadSlides, uploadVideo } from '@/services/admin.service';
 import type { Lesson, LessonContentType } from '@/types/admin';
 
 interface LessonDrawerProps {
@@ -16,6 +18,11 @@ interface LessonFormData {
   contentType: LessonContentType;
   contentBody: string;
   videoUrl: string;
+  videoMode: 'link' | 'upload';
+  videoFileName: string;
+  slidesUrl: string;
+  slidesFileName: string;
+  totalSlides: string;
   estimatedTime: string; // hh:mm format
 }
 
@@ -23,6 +30,9 @@ interface LessonFieldErrors {
   title?: string;
   contentBody?: string;
   videoUrl?: string;
+  videoFile?: string;
+  slidesFile?: string;
+  totalSlides?: string;
   estimatedTime?: string;
 }
 
@@ -46,37 +56,71 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
   const createLesson = useCreateLesson();
   const updateLesson = useUpdateLesson();
 
+  // Fetch full lesson detail (includes videoUrl, contentBody, slidesUrl) when editing
+  const { data: fullLesson } = useLesson(lesson?.id ?? '', {
+    enabled: !!lesson?.id && open,
+  });
+
   const [formData, setFormData] = useState<LessonFormData>({
     title: '',
     contentType: 'text',
     contentBody: '',
     videoUrl: '',
+    videoMode: 'link',
+    videoFileName: '',
+    slidesUrl: '',
+    slidesFileName: '',
+    totalSlides: '',
     estimatedTime: '',
   });
   const [fieldErrors, setFieldErrors] = useState<LessonFieldErrors>({});
+  const [slidesFile, setSlidesFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (lesson) {
+    // Use the full lesson detail if available, otherwise fall back to the prop
+    const lessonData = fullLesson ?? lesson;
+    if (lessonData) {
       let timeDisplay = '';
-      if (lesson.estimatedTimeValue != null) {
-        // Convert stored value to hh:mm (stored as minutes)
-        const totalMinutes = lesson.estimatedTimeUnit === 'hours'
-          ? lesson.estimatedTimeValue * 60
-          : lesson.estimatedTimeValue;
+      if (lessonData.estimatedTimeValue != null) {
+        const totalMinutes = lessonData.estimatedTimeUnit === 'hours'
+          ? lessonData.estimatedTimeValue * 60
+          : lessonData.estimatedTimeValue;
         timeDisplay = minutesToHhmm(totalMinutes);
       }
       setFormData({
-        title: lesson.title,
-        contentType: lesson.contentType,
-        contentBody: lesson.contentBody || '',
-        videoUrl: lesson.videoUrl || '',
+        title: lessonData.title,
+        contentType: lessonData.contentType,
+        contentBody: lessonData.contentBody || '',
+        videoUrl: lessonData.videoUrl || '',
+        videoMode: lessonData.videoUrl?.startsWith('/uploads/') ? 'upload' : 'link',
+        videoFileName: lessonData.videoUrl?.startsWith('/uploads/') ? lessonData.videoUrl.split('/').pop() || '' : '',
+        slidesUrl: lessonData.slidesUrl || '',
+        slidesFileName: lessonData.slidesUrl ? lessonData.slidesUrl.split('/').pop() || '' : '',
+        totalSlides: lessonData.totalSlides ? String(lessonData.totalSlides) : '',
         estimatedTime: timeDisplay,
       });
     } else {
-      setFormData({ title: '', contentType: 'text', contentBody: '', videoUrl: '', estimatedTime: '' });
+      setFormData({
+        title: '',
+        contentType: 'text',
+        contentBody: '',
+        videoUrl: '',
+        videoMode: 'link',
+        videoFileName: '',
+        slidesUrl: '',
+        slidesFileName: '',
+        totalSlides: '',
+        estimatedTime: '',
+      });
     }
     setFieldErrors({});
-  }, [lesson, open]);
+    setSlidesFile(null);
+    setVideoFile(null);
+  }, [fullLesson, lesson, open]);
 
   function validate(): boolean {
     const errors: LessonFieldErrors = {};
@@ -90,13 +134,35 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     }
 
     if (formData.contentType === 'video') {
-      if (!formData.videoUrl.trim()) {
-        errors.videoUrl = 'Video URL is required for video lessons';
+      if (formData.videoMode === 'link') {
+        if (!formData.videoUrl.trim()) {
+          errors.videoUrl = 'Video URL is required';
+        } else {
+          try {
+            new URL(formData.videoUrl.trim());
+          } catch {
+            errors.videoUrl = 'Please enter a valid URL';
+          }
+        }
       } else {
-        try {
-          new URL(formData.videoUrl.trim());
-        } catch {
-          errors.videoUrl = 'Please enter a valid URL';
+        // Upload mode — need either an existing URL or a new file
+        if (!formData.videoUrl && !videoFile) {
+          errors.videoFile = 'Please upload a video file (MP4, WebM, MOV, etc.)';
+        }
+      }
+    }
+
+    if (formData.contentType === 'slides') {
+      // Need either an existing slides URL (editing) or a new file
+      if (!formData.slidesUrl && !slidesFile) {
+        errors.slidesFile = 'Please upload a slides file (PPTX, PPT, or PDF)';
+      }
+      if (!formData.totalSlides.trim()) {
+        errors.totalSlides = 'Total number of slides is required';
+      } else {
+        const num = parseInt(formData.totalSlides, 10);
+        if (isNaN(num) || num < 1) {
+          errors.totalSlides = 'Must be a positive number';
         }
       }
     }
@@ -114,16 +180,13 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     return Object.keys(errors).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
-    const data = {
+    const base = {
       title: formData.title.trim(),
       content_type: formData.contentType,
-      ...(formData.contentType === 'text'
-        ? { content_body: formData.contentBody.trim() }
-        : { video_url: formData.videoUrl.trim() }),
       ...(formData.estimatedTime.trim()
         ? {
             estimated_time_value: hhmmToMinutes(formData.estimatedTime.trim())!,
@@ -131,6 +194,53 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
           }
         : {}),
     };
+
+    let data: any = { ...base };
+
+    if (formData.contentType === 'text') {
+      data.content_body = formData.contentBody.trim();
+    } else if (formData.contentType === 'video') {
+      if (formData.videoMode === 'upload') {
+        // Upload file first if a new file was selected
+        if (videoFile) {
+          try {
+            setIsUploading(true);
+            const uploadResult = await uploadVideo(videoFile);
+            data.video_url = uploadResult.url;
+          } catch (err: any) {
+            setFieldErrors({ videoFile: err.message || 'Video upload failed' });
+            setIsUploading(false);
+            return;
+          } finally {
+            setIsUploading(false);
+          }
+        } else {
+          // Keep existing URL when editing without re-uploading
+          data.video_url = formData.videoUrl;
+        }
+      } else {
+        data.video_url = formData.videoUrl.trim();
+      }
+    } else if (formData.contentType === 'slides') {
+      // Upload file first if a new file was selected
+      if (slidesFile) {
+        try {
+          setIsUploading(true);
+          const uploadResult = await uploadSlides(slidesFile);
+          data.slides_url = uploadResult.url;
+        } catch (err: any) {
+          setFieldErrors({ slidesFile: err.message || 'Upload failed' });
+          setIsUploading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+      } else {
+        // Keep existing URL when editing without re-uploading
+        data.slides_url = formData.slidesUrl;
+      }
+      data.total_slides = parseInt(formData.totalSlides, 10);
+    }
 
     if (isEditing && lesson) {
       updateLesson.mutate(
@@ -145,7 +255,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     }
   }
 
-  const isPending = createLesson.isPending || updateLesson.isPending;
+  const isPending = createLesson.isPending || updateLesson.isPending || isUploading;
   const error = createLesson.error || updateLesson.error;
 
   return (
@@ -156,7 +266,11 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <ErrorMessage message={error.message || 'An error occurred'} />
+          <ErrorMessage message={
+            error.details
+              ? Object.values(error.details).join('. ')
+              : error.message || 'An error occurred'
+          } />
         )}
 
         {/* Title */}
@@ -188,7 +302,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
           <label className="block text-helper font-medium text-navy mb-1.5">
             Content Type <span className="text-danger">*</span>
           </label>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
@@ -210,6 +324,17 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
                 className="h-4 w-4 text-teal accent-teal"
               />
               <span className="text-body text-navy">Video</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="contentType"
+                value="slides"
+                checked={formData.contentType === 'slides'}
+                onChange={() => setFormData({ ...formData, contentType: 'slides' })}
+                className="h-4 w-4 text-teal accent-teal"
+              />
+              <span className="text-body text-navy">Slides</span>
             </label>
           </div>
         </div>
@@ -241,28 +366,186 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
         )}
 
         {formData.contentType === 'video' && (
-          <div>
-            <label htmlFor="lesson-video-url" className="block text-helper font-medium text-navy mb-1.5">
-              Video URL <span className="text-danger">*</span>
-            </label>
-            <input
-              id="lesson-video-url"
-              type="url"
-              value={formData.videoUrl}
-              onChange={(e) => {
-                setFormData({ ...formData, videoUrl: e.target.value });
-                if (fieldErrors.videoUrl) setFieldErrors((prev) => ({ ...prev, videoUrl: undefined }));
-              }}
-              aria-invalid={!!fieldErrors.videoUrl}
-              className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
-                fieldErrors.videoUrl ? 'border-danger-400' : 'border-muted-300'
-              }`}
-              placeholder="https://example.com/video"
-            />
-            {fieldErrors.videoUrl && (
-              <p className="mt-1 text-helper text-danger-600">{fieldErrors.videoUrl}</p>
+          <div className="space-y-3">
+            {/* Video source toggle */}
+            <div>
+              <label className="block text-helper font-medium text-navy mb-1.5">
+                Video Source <span className="text-danger">*</span>
+              </label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, videoMode: 'link' })}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
+                    formData.videoMode === 'link'
+                      ? 'bg-secondary text-white border-secondary'
+                      : 'bg-white text-muted-600 border-muted-300 hover:border-muted-400'
+                  }`}
+                >
+                  Paste Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, videoMode: 'upload' })}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
+                    formData.videoMode === 'upload'
+                      ? 'bg-secondary text-white border-secondary'
+                      : 'bg-white text-muted-600 border-muted-300 hover:border-muted-400'
+                  }`}
+                >
+                  Upload File
+                </button>
+              </div>
+            </div>
+
+            {formData.videoMode === 'link' && (
+              <div>
+                <input
+                  id="lesson-video-url"
+                  type="url"
+                  value={formData.videoUrl}
+                  onChange={(e) => {
+                    setFormData({ ...formData, videoUrl: e.target.value });
+                    if (fieldErrors.videoUrl) setFieldErrors((prev) => ({ ...prev, videoUrl: undefined }));
+                  }}
+                  aria-invalid={!!fieldErrors.videoUrl}
+                  className={`w-full rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
+                    fieldErrors.videoUrl ? 'border-danger-400' : 'border-muted-300'
+                  }`}
+                  placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..."
+                />
+                {fieldErrors.videoUrl && (
+                  <p className="mt-1 text-helper text-danger-600">{fieldErrors.videoUrl}</p>
+                )}
+                <p className="mt-1 text-xs text-muted-400">Supports YouTube, Vimeo, and direct video URLs</p>
+              </div>
+            )}
+
+            {formData.videoMode === 'upload' && (
+              <div>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition hover:border-teal hover:bg-teal-50/30 ${
+                    fieldErrors.videoFile ? 'border-danger-400' : 'border-muted-300'
+                  }`}
+                  onClick={() => videoFileInputRef.current?.click()}
+                >
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    accept=".mp4,.webm,.ogg,.mov,.avi,.mkv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setVideoFile(file);
+                      if (file) {
+                        setFormData({ ...formData, videoFileName: file.name });
+                        if (fieldErrors.videoFile) setFieldErrors((prev) => ({ ...prev, videoFile: undefined }));
+                      }
+                    }}
+                  />
+                  {videoFile || formData.videoFileName ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <FileCheck className="h-5 w-5 text-teal" />
+                      <span className="text-sm text-navy font-medium truncate">
+                        {videoFile?.name || formData.videoFileName}
+                      </span>
+                      <span className="text-xs text-muted-400">
+                        {videoFile ? `(${(videoFile.size / 1024 / 1024).toFixed(1)} MB)` : '(uploaded)'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-8 w-8 text-muted-400" />
+                      <p className="text-sm text-muted-500">
+                        Click to upload <span className="font-medium">MP4, WebM, MOV</span>
+                      </p>
+                      <p className="text-xs text-muted-400">Max 20MB</p>
+                    </div>
+                  )}
+                </div>
+                {fieldErrors.videoFile && (
+                  <p className="mt-1 text-helper text-danger-600">{fieldErrors.videoFile}</p>
+                )}
+              </div>
             )}
           </div>
+        )}
+
+        {formData.contentType === 'slides' && (
+          <>
+            <div>
+              <label className="block text-helper font-medium text-navy mb-1.5">
+                Slides File <span className="text-danger">*</span>
+              </label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition hover:border-teal hover:bg-teal-50/30 ${
+                  fieldErrors.slidesFile ? 'border-danger-400' : 'border-muted-300'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pptx,.ppt,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setSlidesFile(file);
+                    if (file) {
+                      setFormData({ ...formData, slidesFileName: file.name });
+                      if (fieldErrors.slidesFile) setFieldErrors((prev) => ({ ...prev, slidesFile: undefined }));
+                    }
+                  }}
+                />
+                {slidesFile || formData.slidesFileName ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <FileCheck className="h-5 w-5 text-teal" />
+                    <span className="text-sm text-navy font-medium truncate">
+                      {slidesFile?.name || formData.slidesFileName}
+                    </span>
+                    <span className="text-xs text-muted-400">
+                      {slidesFile ? `(${(slidesFile.size / 1024 / 1024).toFixed(1)} MB)` : '(uploaded)'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-400" />
+                    <p className="text-sm text-muted-500">
+                      Click to upload <span className="font-medium">PPTX, PPT, or PDF</span>
+                    </p>
+                    <p className="text-xs text-muted-400">Max 50MB</p>
+                  </div>
+                )}
+              </div>
+              {fieldErrors.slidesFile && (
+                <p className="mt-1 text-helper text-danger-600">{fieldErrors.slidesFile}</p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="lesson-total-slides" className="block text-helper font-medium text-navy mb-1.5">
+                Total Slides <span className="text-danger">*</span>
+              </label>
+              <input
+                id="lesson-total-slides"
+                type="number"
+                min="1"
+                value={formData.totalSlides}
+                onChange={(e) => {
+                  setFormData({ ...formData, totalSlides: e.target.value });
+                  if (fieldErrors.totalSlides) setFieldErrors((prev) => ({ ...prev, totalSlides: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.totalSlides}
+                className={`w-40 rounded-lg border px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition ${
+                  fieldErrors.totalSlides ? 'border-danger-400' : 'border-muted-300'
+                }`}
+                placeholder="e.g., 12"
+              />
+              {fieldErrors.totalSlides && (
+                <p className="mt-1 text-helper text-danger-600">{fieldErrors.totalSlides}</p>
+              )}
+            </div>
+          </>
         )}
 
         {/* Estimated Time (always shown regardless of content type) */}
@@ -304,7 +587,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
             disabled={isPending}
             className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
           >
-            {isPending ? 'Saving...' : isEditing ? 'Update Lesson' : 'Add Lesson'}
+            {isPending ? (isUploading ? 'Uploading...' : 'Saving...') : isEditing ? 'Update Lesson' : 'Add Lesson'}
           </button>
         </div>
       </form>

@@ -1,6 +1,8 @@
 import { eq, asc, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { lessons } from '../db/schema/lessons.js';
+import { lessonCompletions } from '../db/schema/lesson-completions.js';
+import { lessonProgress } from '../db/schema/lesson-progress.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
 import type { PaginatedResult } from './user-management.service.js';
@@ -33,9 +35,11 @@ export const lessonService = {
    */
   async create(moduleId: string, data: {
     title: string;
-    content_type: 'text' | 'video';
+    content_type: 'text' | 'video' | 'slides';
     content_body?: string;
     video_url?: string;
+    slides_url?: string;
+    total_slides?: number | null;
     estimated_time_value?: number | null;
     estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
@@ -58,6 +62,8 @@ export const lessonService = {
         contentType: data.content_type,
         contentBody: data.content_body ?? null,
         videoUrl: data.video_url ?? null,
+        slidesUrl: data.slides_url ?? null,
+        totalSlides: data.total_slides ?? null,
         estimatedTimeValue: data.estimated_time_value ?? null,
         estimatedTimeUnit: data.estimated_time_unit ?? null,
         sortOrder: nextSortOrder,
@@ -143,9 +149,11 @@ export const lessonService = {
    */
   async update(id: string, data: {
     title?: string;
-    content_type?: 'text' | 'video';
+    content_type?: 'text' | 'video' | 'slides';
     content_body?: string;
     video_url?: string;
+    slides_url?: string;
+    total_slides?: number | null;
     estimated_time_value?: number | null;
     estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
@@ -166,6 +174,8 @@ export const lessonService = {
     if (data.content_type !== undefined) updateData.contentType = data.content_type;
     if (data.content_body !== undefined) updateData.contentBody = data.content_body;
     if (data.video_url !== undefined) updateData.videoUrl = data.video_url;
+    if (data.slides_url !== undefined) updateData.slidesUrl = data.slides_url;
+    if (data.total_slides !== undefined) updateData.totalSlides = data.total_slides;
     if (data.estimated_time_value !== undefined) updateData.estimatedTimeValue = data.estimated_time_value;
     if (data.estimated_time_unit !== undefined) updateData.estimatedTimeUnit = data.estimated_time_unit;
 
@@ -237,6 +247,10 @@ export const lessonService = {
     }
 
     const moduleId = existing.moduleId;
+
+    // Delete associated completion and progress records first (FK restrict)
+    await db.delete(lessonCompletions).where(eq(lessonCompletions.lessonId, id));
+    await db.delete(lessonProgress).where(eq(lessonProgress.lessonId, id));
 
     // Delete the lesson
     await db.delete(lessons).where(eq(lessons.id, id));

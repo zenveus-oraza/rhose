@@ -15,6 +15,7 @@ import type {
   LessonContentResponse,
   CompleteLessonResponse,
   CurrentLessonResponse,
+  LessonProgressResponse,
 } from '@/types/learner';
 import type { ApiError } from '@/services/api';
 
@@ -213,4 +214,44 @@ export function useSegmentProgress(
         }
       : undefined,
   };
+}
+
+// --- Lesson Progress ---
+
+/**
+ * Get the current progress evidence for a specific lesson.
+ * Used to determine if "Mark as Complete" should be enabled.
+ */
+export function useLessonProgress(
+  lessonId: string,
+  options?: Omit<UseQueryOptions<LessonProgressResponse, ApiError>, 'queryKey' | 'queryFn'>
+) {
+  return useQuery<LessonProgressResponse, ApiError>({
+    queryKey: [...learnerKeys.lessons(), 'progress', lessonId],
+    queryFn: () => learnerService.getLessonProgress(lessonId),
+    enabled: !!lessonId,
+    ...options,
+  });
+}
+
+/**
+ * Report progress evidence for a lesson. Mutation hook that reports engagement %.
+ * Backend uses max-wins strategy (only stores if new value > existing).
+ */
+export function useReportLessonProgress() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    LessonProgressResponse,
+    ApiError,
+    { lessonId: string; progressPercent: number }
+  >({
+    mutationFn: ({ lessonId, progressPercent }) =>
+      learnerService.reportLessonProgress(lessonId, progressPercent),
+    onSuccess: (_data, variables) => {
+      // Invalidate the progress query for this lesson
+      queryClient.invalidateQueries({
+        queryKey: [...learnerKeys.lessons(), 'progress', variables.lessonId],
+      });
+    },
+  });
 }

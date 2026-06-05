@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-export type BadgeVariant = 'draft' | 'active' | 'archived' | 'deactivated' | 'text' | 'video';
+export type BadgeVariant = 'draft' | 'active' | 'archived' | 'deactivated' | 'text' | 'video' | 'slides';
 
 const variantStyles: Record<BadgeVariant, string> = {
   draft: 'bg-warning-50 text-warning-700 border-warning-200',
@@ -9,6 +9,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   deactivated: 'bg-danger-50 text-danger-700 border-danger-200',
   text: 'bg-teal-50 text-primary border-teal-200',
   video: 'bg-navy-50 text-navy-600 border-navy-200',
+  slides: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
 interface StatusBadgeProps {

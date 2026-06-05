@@ -6,6 +6,7 @@ import type {
   LessonContentResponse,
   CompleteLessonResponse,
   CurrentLessonResponse,
+  LessonProgressResponse,
 } from '@/types/learner';
 
 // --- Assigned Segments ---
@@ -94,4 +95,27 @@ export async function completeLesson(lessonId: string): Promise<CompleteLessonRe
  */
 export async function getCurrentLesson(segmentId: string): Promise<CurrentLessonResponse> {
   return apiClient<CurrentLessonResponse>(`/learner/segments/${segmentId}/current-lesson`);
+}
+
+// --- Lesson Progress ---
+
+/**
+ * Report progress evidence for a lesson (video watch %, slides viewed %, scroll %).
+ * Backend only updates if the new progress is higher (max-wins).
+ */
+export async function reportLessonProgress(
+  lessonId: string,
+  progressPercent: number
+): Promise<LessonProgressResponse> {
+  return apiClient<LessonProgressResponse>(`/learner/lessons/${lessonId}/progress`, {
+    method: 'POST',
+    body: JSON.stringify({ progress_percent: progressPercent }),
+  });
+}
+
+/**
+ * Get current progress evidence for a lesson.
+ */
+export async function getLessonProgress(lessonId: string): Promise<LessonProgressResponse> {
+  return apiClient<LessonProgressResponse>(`/learner/lessons/${lessonId}/progress`);
 }

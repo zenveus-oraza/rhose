@@ -11,6 +11,7 @@ export interface ModuleSummary {
   sortOrder: number;
   lessonCount: number;
   completedCount: number;
+  accessible: boolean;
 }
 
 export interface SegmentDetail {
@@ -38,6 +39,8 @@ export interface LessonContent {
   contentType: string;
   contentBody: string | null;
   videoUrl: string | null;
+  slidesUrl: string | null;
+  totalSlides: number | null;
 }
 
 export type AccessResult =
@@ -114,16 +117,39 @@ export const navigationService = {
           sortOrder: mod.sortOrder,
           lessonCount: lessonIds.length,
           completedCount,
+          accessible: false, // will be computed below
         };
       })
     );
+
+    // Compute module accessibility: sequential unlock
+    // First module is always accessible. Subsequent modules unlock when ALL preceding
+    // modules are complete. Empty modules (0 lessons) are treated as complete.
+    const sortedSummaries = [...moduleSummaries].sort((a, b) => a.sortOrder - b.sortOrder);
+    for (let i = 0; i < sortedSummaries.length; i++) {
+      if (i === 0) {
+        sortedSummaries[i].accessible = true;
+      } else {
+        // Check all previous modules are done
+        let allPrevDone = true;
+        for (let j = 0; j < i; j++) {
+          const prev = sortedSummaries[j];
+          const prevDone = prev.lessonCount === 0 || prev.completedCount === prev.lessonCount;
+          if (!prevDone) {
+            allPrevDone = false;
+            break;
+          }
+        }
+        sortedSummaries[i].accessible = allPrevDone;
+      }
+    }
 
     return {
       id: segment.id,
       title: segment.title,
       description: segment.description,
       status: segment.status,
-      modules: moduleSummaries,
+      modules: sortedSummaries,
     };
   },
 
@@ -163,21 +189,9 @@ export const navigationService = {
 
     const completedSet = new Set(completions.map((c) => c.lessonId));
 
-    // Build result with accessibility: a lesson is accessible if all prior lessons are completed
-    const result: LessonWithStatus[] = moduleLessons.map((lesson, index) => {
+    // Build result with accessibility: all lessons are accessible (no locking)
+    const result: LessonWithStatus[] = moduleLessons.map((lesson) => {
       const completed = completedSet.has(lesson.id);
-
-      // First lesson is always accessible
-      // Subsequent lessons are accessible only if all prior lessons are completed
-      let accessible = true;
-      if (index > 0) {
-        for (let i = 0; i < index; i++) {
-          if (!completedSet.has(moduleLessons[i].id)) {
-            accessible = false;
-            break;
-          }
-        }
-      }
 
       return {
         id: lesson.id,
@@ -187,7 +201,7 @@ export const navigationService = {
         estimatedTimeValue: lesson.estimatedTimeValue,
         estimatedTimeUnit: lesson.estimatedTimeUnit,
         completed,
-        accessible,
+        accessible: true,
       };
     });
 
@@ -205,6 +219,8 @@ export const navigationService = {
         contentType: lessons.contentType,
         contentBody: lessons.contentBody,
         videoUrl: lessons.videoUrl,
+        slidesUrl: lessons.slidesUrl,
+        totalSlides: lessons.totalSlides,
       })
       .from(lessons)
       .where(eq(lessons.id, lessonId))

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { NavLink, Link, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
-  GraduationCap,
+  BookOpen,
   UserCircle,
   Menu,
   X,
@@ -11,12 +11,12 @@ import {
 
 const learnerNavLinks = [
   { to: '/learner', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/learner/learning', label: 'My Learning', icon: GraduationCap, end: false },
+  { to: '/learner/learning', label: 'My Learning', icon: BookOpen, end: false },
   { to: '/learner/profile', label: 'Profile', icon: UserCircle, end: false },
 ];
 
 export function LearnerLayout() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -94,30 +94,17 @@ export function LearnerLayout() {
         </div>
       </aside>
 
-      {/* Main content area — no border, just content */}
+      {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Navigation header */}
-        <header className="flex h-14 items-center justify-between bg-white px-4">
+        {/* Mobile header — only visible on small screens */}
+        <header className="flex h-14 items-center bg-white px-4 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="rounded p-2 text-navy hover:bg-muted-100 lg:hidden"
+            className="rounded p-2 text-navy hover:bg-muted-100"
             aria-label="Open sidebar"
           >
             <Menu size={20} />
           </button>
-
-          {/* Learner name and profile link */}
-          <div className="ml-auto flex items-center gap-3">
-            {user && (
-              <Link
-                to="/learner/profile"
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-body text-muted-700 hover:bg-muted-100 hover:text-navy transition-colors"
-              >
-                <UserCircle size={20} className="text-muted-500" />
-                <span className="font-medium">{user.name || 'Learner'}</span>
-              </Link>
-            )}
-          </div>
         </header>
 
         {/* Page content */}

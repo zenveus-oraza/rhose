@@ -63,3 +63,43 @@ export async function apiClient<T>(
 
   return body.data as T;
 }
+
+/**
+ * Upload a file using multipart/form-data.
+ * Does NOT set Content-Type header (browser sets it with boundary for FormData).
+ */
+export async function apiUpload<T>(
+  endpoint: string,
+  formData: FormData
+): Promise<T> {
+  const token = getStoredToken();
+
+  const headers: HeadersInit = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    clearStoredToken();
+    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+  }
+
+  const body = await response.json();
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      body.error?.code ?? 'UNKNOWN_ERROR',
+      body.error?.message ?? 'An unexpected error occurred',
+      body.error?.details
+    );
+  }
+
+  return body.data as T;
+}

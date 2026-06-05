@@ -9,6 +9,7 @@ interface MarkCompleteButtonProps {
   segmentId: string;
   moduleId: string;
   isCompleted: boolean;
+  disabled?: boolean;
   onCompleted?: (result: CompleteLessonResponse) => void;
 }
 
@@ -17,6 +18,7 @@ export function MarkCompleteButton({
   segmentId,
   moduleId,
   isCompleted,
+  disabled = false,
   onCompleted,
 }: MarkCompleteButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -77,9 +79,12 @@ export function MarkCompleteButton({
     <button
       type="button"
       onClick={() => setShowConfirm(true)}
+      disabled={disabled}
       className={cn(
         'inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white transition-colors',
-        'bg-secondary hover:bg-secondary/90'
+        disabled
+          ? 'bg-muted-300 cursor-not-allowed'
+          : 'bg-secondary hover:bg-secondary/90'
       )}
     >
       Mark as Complete

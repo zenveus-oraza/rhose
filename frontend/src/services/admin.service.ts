@@ -1,4 +1,4 @@
-import { apiClient } from './api';
+import { apiClient, apiUpload } from './api';
 import type {
   Segment,
   SegmentWithModuleCount,
@@ -225,4 +225,34 @@ export async function listUserAssignments(userId: string, params?: { page?: numb
   const query = searchParams.toString();
   const endpoint = query ? `/admin/users/${userId}/assignments?${query}` : `/admin/users/${userId}/assignments`;
   return apiClient<PaginatedResult<UserAssignment>>(endpoint);
+}
+
+// --- File Uploads ---
+
+export interface UploadResponse {
+  url: string;
+  filename: string;
+  originalName: string;
+  size: number;
+  mimeType: string;
+}
+
+/**
+ * Upload a slides file (pptx, ppt, pdf). Max 50MB.
+ * Returns the URL path to access the uploaded file.
+ */
+export async function uploadSlides(file: File): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiUpload<UploadResponse>('/uploads/slides', formData);
+}
+
+/**
+ * Upload a video file (mp4, webm, ogg, mov, etc). Max 20MB.
+ * Returns the URL path to access the uploaded file.
+ */
+export async function uploadVideo(file: File): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiUpload<UploadResponse>('/uploads/video', formData);
 }

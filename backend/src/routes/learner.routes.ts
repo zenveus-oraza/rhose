@@ -1,13 +1,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { eq, desc, ilike, and, count } from 'drizzle-orm';
+import { eq, desc, ilike, and, count, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { segmentAssignments, segments } from '../db/schema/index.js';
+import { segmentAssignments, segments, lessonProgress } from '../db/schema/index.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireLearner, requireSegmentAccess } from '../middleware/segment-access.js';
 import { progressService } from '../services/progress.service.js';
 import { navigationService } from '../services/navigation.service.js';
 import { completionService } from '../services/completion.service.js';
+import type { CompletionResult } from '../services/completion.service.js';
+import { reportProgressSchema } from '../schemas/lesson.schemas.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -226,27 +228,30 @@ learnerRouter.get(
 
 /**
  * GET /api/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId
- * Get lesson content (text or video) for a specific lesson.
- * Enforces segment access and sequential progression checks.
- * Returns 403 if the lesson is locked (prerequisite not completed).
- * Returns 404 if the lesson does not exist.
+ * Get lesson content (text, video, or slides) for a specific lesson.
+ * Enforces segment access and module-level sequential access.
+ * Lessons within a module are all accessible, but the module itself must be unlocked
+ * (all lessons in preceding modules must be completed).
+ * Returns 403 if the module is locked. Returns 404 if the lesson does not exist.
  */
 learnerRouter.get(
   '/segments/:segmentId/modules/:moduleId/lessons/:lessonId',
   requireSegmentAccess,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      const segmentId = req.params.segmentId as string;
+      const moduleId = req.params.moduleId as string;
       const lessonId = req.params.lessonId as string;
       const userId = req.user!.userId;
 
-      // Check sequential progression — lesson must be accessible
-      const accessResult = await navigationService.canAccessLesson(lessonId, userId);
-
-      if (!accessResult.accessible) {
-        sendError(res, 403, 'LESSON_LOCKED', 'Lesson is locked. Complete the prerequisite lesson first.', {
-          prerequisiteLessonId: accessResult.prerequisiteLessonId,
-        });
-        return;
+      // Check module-level access: is this module unlocked?
+      const segmentDetail = await navigationService.getSegmentDetail(segmentId, userId);
+      if (segmentDetail) {
+        const targetModule = segmentDetail.modules.find((m) => m.id === moduleId);
+        if (targetModule && !targetModule.accessible) {
+          sendError(res, 403, 'MODULE_LOCKED', 'Complete the previous module to access this one.');
+          return;
+        }
       }
 
       // Fetch lesson content
@@ -264,6 +269,8 @@ learnerRouter.get(
           contentType: lesson.contentType,
           contentBody: lesson.contentBody,
           videoUrl: lesson.videoUrl,
+          slidesUrl: lesson.slidesUrl,
+          totalSlides: lesson.totalSlides,
         },
       });
     } catch (error) {
@@ -275,6 +282,7 @@ learnerRouter.get(
 /**
  * POST /api/learner/lessons/:lessonId/complete
  * Mark a lesson as completed for the authenticated learner.
+ * Requires at least 75% progress evidence to be recorded before completion.
  * Segment access is enforced internally by the completion service.
  * Returns completion result with next lesson info and progress flags.
  */
@@ -284,6 +292,27 @@ learnerRouter.post(
     try {
       const lessonId = req.params.lessonId as string;
       const userId = req.user!.userId;
+
+      // Check progress evidence — require at least 75% engagement
+      const [progressRecord] = await db
+        .select({ progressPercent: lessonProgress.progressPercent })
+        .from(lessonProgress)
+        .where(
+          and(
+            eq(lessonProgress.userId, userId),
+            eq(lessonProgress.lessonId, lessonId)
+          )
+        )
+        .limit(1);
+
+      const currentProgress = progressRecord?.progressPercent ?? 0;
+      if (currentProgress < 75) {
+        sendError(res, 403, 'INSUFFICIENT_PROGRESS', 
+          `You must engage with at least 75% of the content before marking as complete. Current progress: ${currentProgress}%`,
+          { currentProgress, requiredProgress: 75 }
+        );
+        return;
+      }
 
       const result = await completionService.completeLesson(userId, lessonId);
 
@@ -300,12 +329,89 @@ learnerRouter.post(
       }
 
       // Success — return completion data
-      const { alreadyCompleted, nextLessonId, moduleComplete, segmentComplete } = result;
+      const completionResult = result as CompletionResult;
       sendSuccess(res, {
-        alreadyCompleted,
-        nextLessonId,
-        moduleComplete,
-        segmentComplete,
+        alreadyCompleted: completionResult.alreadyCompleted,
+        nextLessonId: completionResult.nextLessonId,
+        moduleComplete: completionResult.moduleComplete,
+        segmentComplete: completionResult.segmentComplete,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/learner/lessons/:lessonId/progress
+ * Report progress evidence for a lesson (e.g., video watch %, slides viewed %, scroll %).
+ * Only updates if the new progress is higher than the existing record (max-wins).
+ * Returns the current progress percentage.
+ */
+learnerRouter.post(
+  '/lessons/:lessonId/progress',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonId = req.params.lessonId as string;
+      const userId = req.user!.userId;
+      const { progress_percent } = reportProgressSchema.parse(req.body);
+
+      // Upsert: insert or update only if new progress is higher
+      // Atomic upsert: insert or update with max-wins (only store if new value is higher)
+      // This avoids race conditions from rapid progress reports
+      const [result] = await db
+        .insert(lessonProgress)
+        .values({
+          userId,
+          lessonId,
+          progressPercent: progress_percent,
+        })
+        .onConflictDoUpdate({
+          target: [lessonProgress.userId, lessonProgress.lessonId],
+          set: {
+            progressPercent: sql`GREATEST(${lessonProgress.progressPercent}, ${progress_percent})`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ progressPercent: lessonProgress.progressPercent });
+
+      const finalProgress = result?.progressPercent ?? progress_percent;
+
+      sendSuccess(res, {
+        progressPercent: finalProgress,
+        canComplete: finalProgress >= 75,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/lessons/:lessonId/progress
+ * Get current progress evidence for a lesson.
+ */
+learnerRouter.get(
+  '/lessons/:lessonId/progress',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonId = req.params.lessonId as string;
+      const userId = req.user!.userId;
+
+      const [record] = await db
+        .select({ progressPercent: lessonProgress.progressPercent })
+        .from(lessonProgress)
+        .where(
+          and(
+            eq(lessonProgress.userId, userId),
+            eq(lessonProgress.lessonId, lessonId)
+          )
+        )
+        .limit(1);
+
+      sendSuccess(res, {
+        progressPercent: record?.progressPercent ?? 0,
+        canComplete: (record?.progressPercent ?? 0) >= 75,
       });
     } catch (error) {
       next(error);

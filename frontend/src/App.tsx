@@ -22,14 +22,14 @@ import {
   UserProfilePage,
   AssignTrainingPage,
 } from '@/pages/admin';
-import { SegmentDetailPage, LessonPage } from '@/pages/learner';
+import { SegmentDetailPage, LessonPage, MyLearningPage } from '@/pages/learner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 0, // Always refetch on mount for fresh data
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   },
 });
@@ -75,6 +75,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute requiredRole="learner" />}>
         <Route element={<LearnerLayout />}>
           <Route path="/learner" element={<LearnerDashboard />} />
+          <Route path="/learner/learning" element={<MyLearningPage />} />
           <Route path="/learner/profile" element={<ProfilePage />} />
           <Route path="/learner/segments/:segmentId" element={<SegmentDetailPage />} />
           <Route path="/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId" element={<LessonPage />} />

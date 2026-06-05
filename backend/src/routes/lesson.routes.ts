@@ -30,6 +30,8 @@ moduleLessonRouter.post(
         content_type: data.content_type,
         content_body: data.content_body,
         video_url: data.video_url,
+        slides_url: data.slides_url,
+        total_slides: data.total_slides ?? undefined,
         estimated_time_value: data.estimated_time_value ?? undefined,
         estimated_time_unit: data.estimated_time_unit ?? undefined,
       });

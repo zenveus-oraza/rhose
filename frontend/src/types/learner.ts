@@ -36,6 +36,7 @@ export interface ModuleSummary {
   sortOrder: number;
   lessonCount: number;
   completedCount: number;
+  accessible: boolean;
 }
 
 export interface SegmentDetail {
@@ -75,6 +76,8 @@ export interface LessonContent {
   contentType: string;
   contentBody: string | null;
   videoUrl: string | null;
+  slidesUrl: string | null;
+  totalSlides: number | null;
 }
 
 export interface LessonContentResponse {
@@ -95,4 +98,11 @@ export interface CompleteLessonResponse {
 export interface CurrentLessonResponse {
   currentLesson: { moduleId: string; lessonId: string } | null;
   segmentComplete: boolean;
+}
+
+// --- Lesson Progress ---
+
+export interface LessonProgressResponse {
+  progressPercent: number;
+  canComplete: boolean;
 }

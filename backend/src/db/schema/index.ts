@@ -10,3 +10,4 @@ export * from './modules';
 export * from './lessons';
 export * from './segment-assignments';
 export * from './lesson-completions';
+export * from './lesson-progress';

@@ -64,7 +64,7 @@ export interface ReorderInput {
 
 // --- Lesson Types ---
 
-export type LessonContentType = 'text' | 'video';
+export type LessonContentType = 'text' | 'video' | 'slides';
 
 export interface Lesson {
   id: string;
@@ -72,6 +72,8 @@ export interface Lesson {
   contentType: LessonContentType;
   contentBody: string | null;
   videoUrl: string | null;
+  slidesUrl: string | null;
+  totalSlides: number | null;
   estimatedTimeValue: number | null;
   estimatedTimeUnit: 'minutes' | 'hours' | null;
   moduleId: string;
@@ -85,6 +87,8 @@ export interface CreateLessonInput {
   content_type: LessonContentType;
   content_body?: string;
   video_url?: string;
+  slides_url?: string;
+  total_slides?: number;
   estimated_time_value?: number;
   estimated_time_unit?: 'minutes' | 'hours';
 }
@@ -94,6 +98,8 @@ export interface UpdateLessonInput {
   content_type?: LessonContentType;
   content_body?: string;
   video_url?: string;
+  slides_url?: string;
+  total_slides?: number;
   estimated_time_value?: number;
   estimated_time_unit?: 'minutes' | 'hours';
 }
