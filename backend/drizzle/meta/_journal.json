@@ -57,6 +57,13 @@
       "when": 1780581066046,
       "tag": "0007_bitter_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780596120443,
+      "tag": "0008_dark_the_initiative",
+      "breakpoints": true
     }
   ]
 }

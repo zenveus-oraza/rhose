@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const profileUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
+  jobTitle: z.string().max(100).optional(),
+  phone: z.string().regex(/^\+?[\d\s\-()]{7,20}$/, 'Invalid phone number format').optional(),
+  profileImage: z.string().optional(),
 });
 
 export const passwordChangeSchema = z.object({

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema/users.js';
-import { userCreationSchema } from '../schemas/user.schemas.js';
+import { userCreationSchema, profileUpdateSchema } from '../schemas/user.schemas.js';
 import { hashPassword } from '../utils/password.js';
 import { sendSuccess } from '../utils/response.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -59,7 +59,7 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = (req as any).user.userId;
-      const { name, email, profileImage, jobTitle, phone } = req.body;
+      const { name, email, profileImage, jobTitle, phone } = profileUpdateSchema.parse(req.body);
 
       // Check email uniqueness if email is being changed
       if (email) {

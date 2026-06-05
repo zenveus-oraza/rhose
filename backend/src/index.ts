@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import adminRouter from './routes/admin.routes.js';
+import learnerRouter from './routes/learner.routes.js';
 
 const app = express();
 const PORT = env.PORT;
@@ -23,6 +24,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRouter);
+app.use('/api/learner', learnerRouter);
 
 // --- Register routes above this line ---
 

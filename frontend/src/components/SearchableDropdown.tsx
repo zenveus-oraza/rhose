@@ -27,8 +27,10 @@ export function SearchableDropdown<T extends { id: string }>({
 }: SearchableDropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   // Filter items based on search
   const filtered = search
@@ -36,6 +38,20 @@ export function SearchableDropdown<T extends { id: string }>({
         renderLabel(item).toLowerCase().includes(search.toLowerCase())
       )
     : items;
+
+  // Reset highlighted index when filtered items change or dropdown opens/closes
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [search, open]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const items = listRef.current.querySelectorAll('[role="option"]');
+      const highlighted = items[highlightedIndex] as HTMLElement | undefined;
+      highlighted?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIndex]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -62,10 +78,36 @@ export function SearchableDropdown<T extends { id: string }>({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setOpen(false);
-    } else if (e.key === 'ArrowDown' && !open) {
-      setOpen(true);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+      } else {
+        setHighlightedIndex(prev =>
+          prev >= filtered.length - 1 ? 0 : prev + 1
+        );
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (open) {
+        setHighlightedIndex(prev =>
+          prev <= 0 ? filtered.length - 1 : prev - 1
+        );
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && highlightedIndex >= 0 && highlightedIndex < filtered.length) {
+        onChange(filtered[highlightedIndex]);
+        setOpen(false);
+        setSearch('');
+      }
     }
   };
+
+  const activeDescendantId =
+    open && highlightedIndex >= 0 && highlightedIndex < filtered.length
+      ? `searchable-dropdown-option-${filtered[highlightedIndex].id}`
+      : undefined;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -76,6 +118,7 @@ export function SearchableDropdown<T extends { id: string }>({
         className="w-full flex items-center justify-between rounded-xl border border-muted-200 bg-white px-4 py-2.5 text-body text-left text-muted-800 hover:border-muted-300 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-activedescendant={activeDescendantId}
       >
         <span className={value ? 'text-navy' : 'text-muted-400'}>
           {value ? renderLabel(value) : placeholder}
@@ -110,6 +153,11 @@ export function SearchableDropdown<T extends { id: string }>({
                 }}
                 onKeyDown={handleKeyDown}
                 className="w-full pl-9 pr-4 py-2 border border-muted-200 rounded-lg text-body focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                aria-activedescendant={activeDescendantId}
+                aria-controls="searchable-dropdown-listbox"
+                role="combobox"
+                aria-expanded={open}
+                aria-autocomplete="list"
               />
             </div>
           </div>
@@ -126,16 +174,28 @@ export function SearchableDropdown<T extends { id: string }>({
                 No items found
               </div>
             ) : (
-              <ul className="divide-y divide-muted-100" role="listbox">
-                {filtered.map(item => (
+              <ul
+                ref={listRef}
+                className="divide-y divide-muted-100"
+                role="listbox"
+                id="searchable-dropdown-listbox"
+              >
+                {filtered.map((item, index) => (
                   <li key={item.id}>
                     <button
+                      id={`searchable-dropdown-option-${item.id}`}
                       onClick={() => {
                         onChange(item);
                         setOpen(false);
                         setSearch('');
                       }}
-                      className="w-full px-4 py-2.5 text-left text-body text-muted-800 hover:bg-muted-50 transition-colors focus:bg-muted-50 focus:outline-none"
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      className={cn(
+                        'w-full px-4 py-2.5 text-left text-body text-muted-800 transition-colors focus:outline-none',
+                        index === highlightedIndex
+                          ? 'bg-teal-50'
+                          : 'hover:bg-muted-50'
+                      )}
                       role="option"
                       aria-selected={value?.id === item.id}
                     >

@@ -9,3 +9,4 @@ export * from './segments';
 export * from './modules';
 export * from './lessons';
 export * from './segment-assignments';
+export * from './lesson-completions';

@@ -22,6 +22,7 @@ import {
   UserProfilePage,
   AssignTrainingPage,
 } from '@/pages/admin';
+import { SegmentDetailPage, LessonPage } from '@/pages/learner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +76,8 @@ function AppRoutes() {
         <Route element={<LearnerLayout />}>
           <Route path="/learner" element={<LearnerDashboard />} />
           <Route path="/learner/profile" element={<ProfilePage />} />
+          <Route path="/learner/segments/:segmentId" element={<SegmentDetailPage />} />
+          <Route path="/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId" element={<LessonPage />} />
           <Route path="/learner/*" element={<LearnerDashboard />} />
         </Route>
       </Route>
