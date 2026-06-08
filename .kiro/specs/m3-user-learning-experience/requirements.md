@@ -2,9 +2,18 @@
 
 ## Introduction
 
-Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, lesson views supporting text content and embedded video links, lesson completion confirmation flow, sequential lesson progression enforcement, and segment-based access control with duration handling. This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments). 
+Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, a My Learning page with full segment/module/lesson navigation, lesson views supporting text content, embedded/uploaded video, and uploaded slides (PPTX/PPT/PDF), progress evidence tracking with 75% engagement gating, lesson completion confirmation flow, module-level sequential progression enforcement (lessons within modules are free, modules are sequential), and segment-based access control with duration handling.
 
-**IMPORTANT**: This milestone implements all requirements from M3 requirements.md AND follows all governance rules and cross-cutting concerns documented in `.kiro/steering/governance-and-cross-cutting-concerns.md`, including pagination, profile picture display with lazy loading, phone/job title fields, and admin editing capabilities.
+This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments).
+
+**Key Implementation Notes:**
+- Locking is module-level only: complete all lessons in Module N to unlock Module N+1
+- Lessons within a module are all freely accessible (no lesson-to-lesson locking)
+- Slides is a third content type alongside text and video — supports file upload (PPTX/PPT/PDF)
+- Video supports both URL links (YouTube/Vimeo) and file uploads (MP4/WebM/MOV up to 20MB)
+- Progress evidence must reach 75% before "Mark as Complete" is enabled
+- Progress is tracked via: video watch %, slides viewed %, text scroll %
+- Layout matches admin pattern: no desktop header, heading + divider + content
 
 Offline access and downloadable lesson content are explicitly excluded.
 
@@ -106,31 +115,72 @@ Screenshots guide UI layout and component behavior. They do not add features out
 
 ### Requirement 6: Lesson Completion Confirmation
 
-**User Story:** As a learner, I want to confirm that I have completed a lesson so that my progress is recorded and I can advance to the next lesson.
+**User Story:** As a learner, I want to confirm that I have completed a lesson so that my progress is recorded and I can advance to the next module.
 
 #### Acceptance Criteria
 
-1. WHEN an authenticated learner submits a completion confirmation for a lesson they have not previously completed, THE Completion_Service SHALL create a Lesson_Completion record with the user_id, lesson_id, and completed_at timestamp, and return a success response.
+1. WHEN an authenticated learner submits a completion confirmation for a lesson they have not previously completed AND their engagement progress is >= 75%, THE Completion_Service SHALL create a Lesson_Completion record with the user_id, lesson_id, and completed_at timestamp, and return a success response.
 2. WHEN an authenticated learner submits a completion confirmation for a lesson they have already completed, THE Completion_Service SHALL return a 200 OK response without creating a duplicate record (idempotent operation).
-3. WHEN an authenticated learner submits a completion confirmation for a lesson in a segment they do not have valid access to, THE Segment_Access_Service SHALL return a 403 Forbidden response.
-4. WHEN an authenticated learner submits a completion confirmation for a lesson that does not exist, THE Completion_Service SHALL return a 404 Not Found response.
-5. WHEN a lesson completion is recorded successfully, THE Completion_Service SHALL return the updated progress state including the next available lesson_id within the module (or null if the module is complete).
-6. FOR ALL lesson completion operations, completing a lesson then querying that lesson's status for the same user SHALL return "completed" (round-trip property).
-7. FOR ALL lesson completion operations, completing the same lesson multiple times SHALL produce the same single completion record (idempotence property).
+3. WHEN an authenticated learner submits a completion confirmation but their engagement progress is below 75%, THE Completion_Service SHALL return a 403 Forbidden response with error code "INSUFFICIENT_PROGRESS".
+4. WHEN an authenticated learner submits a completion confirmation for a lesson in a segment they do not have valid access to, THE Segment_Access_Service SHALL return a 403 Forbidden response.
+5. WHEN an authenticated learner submits a completion confirmation for a lesson that does not exist, THE Completion_Service SHALL return a 404 Not Found response.
+6. WHEN a lesson completion is recorded successfully, THE Completion_Service SHALL return the updated progress state including the next available lesson_id within the module (or null if the module is complete).
+7. FOR ALL lesson completion operations, completing a lesson then querying that lesson's status for the same user SHALL return "completed" (round-trip property).
+8. FOR ALL lesson completion operations, completing the same lesson multiple times SHALL produce the same single completion record (idempotence property).
 
-### Requirement 7: Sequential Lesson Progression
+### Requirement 6A: Progress Evidence Tracking
 
-**User Story:** As a platform operator, I want learners to complete lessons in order within a module so that the structured learning flow is maintained.
+**User Story:** As a platform operator, I want engagement evidence tracked before learners can mark lessons complete so that they actually consume the content.
 
 #### Acceptance Criteria
 
-1. WHEN an authenticated learner requests a lesson that is the first lesson (sort_order 1) in a module, THE Navigation_Service SHALL grant access regardless of other lesson completion states within that module.
-2. WHEN an authenticated learner requests a lesson with sort_order N (where N > 1), THE Navigation_Service SHALL grant access only if the lesson with sort_order N-1 in the same module has been completed by that learner.
-3. WHEN an authenticated learner requests a lesson whose prerequisite lesson has not been completed, THE Navigation_Service SHALL return a 403 Forbidden response with error code "LESSON_LOCKED" and include the id of the prerequisite lesson that must be completed first.
-4. WHEN an authenticated learner completes the last lesson in a module, THE Navigation_Service SHALL indicate that the next module's first lesson is now accessible (cross-module progression).
-5. WHEN an authenticated learner has completed all lessons in all modules of a segment, THE Navigation_Service SHALL indicate segment completion status.
-6. FOR ALL lessons within a module, a learner SHALL only access lesson at position N if all lessons at positions 1 through N-1 are completed (sequential invariant property).
+1. WHEN an authenticated learner engages with video content, THE frontend SHALL report the watch percentage to the backend via POST `/api/learner/lessons/:lessonId/progress`.
+2. WHEN an authenticated learner navigates through slides, THE frontend SHALL report (viewedSlides / totalSlides * 100) as progress percentage.
+3. WHEN an authenticated learner scrolls through text content, THE frontend SHALL report scroll percentage as progress.
+4. THE backend SHALL store progress using a max-wins strategy (only updates if new value > existing).
+5. THE backend SHALL use an atomic upsert (INSERT ON CONFLICT UPDATE with GREATEST) to prevent race conditions from rapid progress reports.
+6. WHEN progress reaches >= 75%, the GET progress endpoint SHALL return `canComplete: true`.
+7. THE "Mark as Complete" button SHALL be disabled in the UI until the backend confirms `canComplete: true`.
+
+### Requirement 6B: Lesson View - Slides Content
+
+**User Story:** As a learner, I want to view slides-based lessons so that I can learn from presentation content.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner with valid segment access requests a slides lesson, THE Lesson_View SHALL render the uploaded slides file.
+2. FOR PDF slides, THE Lesson_View SHALL render the file directly in an iframe.
+3. FOR PPTX/PPT slides, THE Lesson_View SHALL display a download button and slide navigation thumbnails.
+4. THE Lesson_View SHALL track which slides have been viewed and report progress as (viewed / total * 100).
+5. THE admin lesson creation form SHALL allow uploading PPTX, PPT, or PDF files (max 50MB).
+6. THE admin lesson creation form SHALL require a "Total Slides" count for slides lessons.
+
+### Requirement 6C: Video Upload Support
+
+**User Story:** As an admin, I want to either paste a video link or upload a video file so that I have flexibility in how I add video content.
+
+#### Acceptance Criteria
+
+1. THE admin lesson creation form SHALL provide a toggle between "Paste Link" and "Upload File" for video content.
+2. WHEN "Paste Link" is selected, THE form SHALL accept a URL (YouTube, Vimeo, or direct video link).
+3. WHEN "Upload File" is selected, THE form SHALL allow uploading video files (MP4, WebM, MOV, etc.) up to 20MB.
+4. THE backend SHALL store uploaded videos in `uploads/videos/` and return a relative URL path.
+5. THE learner video player SHALL handle both external URLs (YouTube/Vimeo via react-player) and uploaded file paths.
+
+### Requirement 7: Sequential Module Progression
+
+**User Story:** As a platform operator, I want learners to complete modules in order within a segment so that the structured learning flow is maintained, while allowing free exploration within each module.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner requests any lesson within the first module (sort_order 1) of a segment, THE Navigation_Service SHALL grant access regardless of lesson completion state.
+2. WHEN an authenticated learner requests a lesson within module N (where N > 1), THE Navigation_Service SHALL grant access only if ALL lessons in ALL preceding modules (1 through N-1) have been completed by that learner.
+3. WHEN an authenticated learner requests a lesson in a module that is locked, THE Navigation_Service SHALL return a 403 Forbidden response with error code "MODULE_LOCKED".
+4. WHEN an authenticated learner completes all lessons in a module, THE next module SHALL become accessible.
+5. WHEN a module has zero lessons (empty module), THE Navigation_Service SHALL treat it as complete and not block access to subsequent modules.
+6. WITHIN an accessible module, ALL lessons SHALL be accessible to the learner regardless of completion order (no lesson-level locking).
 7. THE Navigation_Service SHALL determine the learner's "current lesson" as the first incomplete lesson in sort_order within the first incomplete module in sort_order.
+8. WHEN an authenticated learner has completed all lessons in all modules of a segment, THE Navigation_Service SHALL indicate segment completion status.
 
 ### Requirement 8: Progress Tracking
 

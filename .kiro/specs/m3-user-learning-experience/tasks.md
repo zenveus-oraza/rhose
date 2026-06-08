@@ -2,278 +2,209 @@
 
 ## Overview
 
-This plan implements the learner-facing experience for the Rhose platform: dashboard with assigned segments, segment access control with duration enforcement, lesson viewing (text and video), lesson completion confirmation, sequential progression, and progress tracking. The implementation follows a layered approach: data model extensions first, then backend services and API endpoints, then frontend integration and UI components.
+This plan implements the learner-facing experience for the Rhose platform. The implementation covers: learner dashboard, My Learning page, segment/module/lesson navigation, lesson viewing (text, video, and slides), progress evidence tracking, module-level sequential locking, lesson completion with 75% engagement gate, and responsive UI matching admin design patterns.
+
+**Key changes from original design:**
+- Lessons within a module are all freely accessible (no lesson-level locking)
+- Modules are sequentially locked — complete all lessons in module N to unlock module N+1
+- Slides content type added with file upload (PPTX/PPT/PDF)
+- Video supports both URL links (YouTube/Vimeo) AND file uploads (up to 20MB)
+- Progress evidence tracking (backend records engagement %) — completion requires 75% engagement
+- My Learning page added showing all segments/modules/lessons with navigation
+- React Player (v2) used for video progress tracking
+- Layout matches admin: no top-right user section, heading + divider pattern, content starts from top
 
 ## Tasks
 
 - [x] 1. Data model extensions and database schema
   - [x] 1.1 Add access_duration_days column to segment_assignments table
-    - Add nullable integer column `access_duration_days` to the existing `segment_assignments` Drizzle schema
-    - Create corresponding database migration
-    - _Requirements: 10.1, 10.2, 10.3, 10.4_
-
   - [x] 1.2 Create lesson_completions table and schema
-    - Define `lesson_completions` Drizzle schema with id, user_id, lesson_id, completed_at columns
-    - Add unique constraint on (user_id, lesson_id)
-    - Add foreign key constraints referencing users and lessons tables
-    - Create corresponding database migration
-    - _Requirements: 10.5, 10.6, 10.7, 10.8, 10.9_
+  - [x] 1.3 Add slides content type to lessons table
+    - Extended `lesson_content_type` enum: `['text', 'video', 'slides']`
+    - Added `slides_url` (varchar 2048) and `total_slides` (integer) columns to lessons
+    - Migration: `0009_add_slides_and_progress.sql`
+  - [x] 1.4 Create lesson_progress table for engagement evidence tracking
+    - Table: `lesson_progress` with `user_id`, `lesson_id`, `progress_percent` (0-100), `updated_at`
+    - Unique constraint on `(user_id, lesson_id)`
+    - Progress is max-wins (only stores if new > existing)
 
 - [x] 2. Segment Access Service and middleware
-  - [x] 2.1 Implement Segment Access Service
-    - Create `SegmentAccessService` with `verifyAccess(userId, segmentId)` method
-    - Implement access expiry calculation: `assigned_at + access_duration_days` calendar days (UTC)
-    - Handle null duration as unlimited access
-    - Return appropriate error codes: ACCESS_DENIED, ACCESS_EXPIRED, SEGMENT_UNAVAILABLE
-    - Verify assignment existence, duration validity, and segment active status
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+  - [x] 2.1 Implement Segment Access Service (verifyAccess with expiry logic)
+  - [x] 2.2 Implement segment access middleware (requireSegmentAccess, requireLearner)
+  - [x] 2.3 Property test for access expiry calculation
+  - [x] 2.4 Property test for access control invariant
 
-  - [x] 2.2 Implement segment access middleware
-    - Create Express middleware that calls SegmentAccessService before learner route handlers
-    - Return 403 with appropriate error code on access denial
-    - Return 403 for non-learner roles accessing learner endpoints
-    - _Requirements: 2.7, 2.8_
+- [x] 3. Navigation Service and module-level sequential progression
+  - [x] 3.1 Implement Navigation Service
+    - `getSegmentDetail`: Returns modules with `accessible` boolean (module-level locking)
+    - `getModuleLessons`: Returns all lessons as accessible (no lesson-level locking)
+    - `getLessonContent`: Returns lesson content including slides fields
+    - `getCurrentLesson`: First incomplete lesson in first incomplete module
+  - [x] 3.2 Module-level sequential locking logic
+    - First module always accessible
+    - Module N+1 unlocks when ALL lessons in module N are completed
+    - Empty modules (0 lessons) treated as complete, don't block progression
+    - All previous modules must be done (not just immediate predecessor)
+  - [x] 3.3 Lesson content endpoint enforces module-level access
+    - Returns 403 `MODULE_LOCKED` if target module is not accessible
 
-  - [x] 2.3 Write property test for access expiry calculation
-    - **Property 1: Access Expiry Calculation**
-    - Generate random assigned_at + access_duration_days + reference dates, verify active/expired classification
-    - **Validates: Requirements 1.3, 1.4, 2.5, 10.4**
+- [x] 4. Lesson Completion Service
+  - [x] 4.1 Implement Completion Service (idempotent, returns next lesson/progress state)
+  - [x] 4.2 Enforce 75% progress evidence before allowing completion
+    - Completion endpoint checks `lesson_progress` table
+    - Returns 403 `INSUFFICIENT_PROGRESS` with current/required percentages if < 75%
+  - [x] 4.3 Property tests for completion idempotence and round-trip
 
-  - [x] 2.4 Write property test for access control invariant
-    - **Property 2: Access Control Invariant**
-    - Generate random user/segment/assignment/status combinations, verify access decision
-    - **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.7**
+- [x] 5. Progress Service
+  - [x] 5.1 Implement Progress Service (segment and module level)
+  - [x] 5.2 Property tests for progress calculation, invariant, metamorphic
 
-- [x] 3. Checkpoint - Data model and access control
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 6. Progress Evidence Reporting API
+  - [x] 6.1 Implement POST `/api/learner/lessons/:lessonId/progress`
+    - Atomic upsert with `GREATEST` for max-wins (prevents race condition)
+    - Returns `{ progressPercent, canComplete }`
+  - [x] 6.2 Implement GET `/api/learner/lessons/:lessonId/progress`
+    - Returns current progress percentage and completion eligibility
 
-- [x] 4. Navigation Service and sequential progression
-  - [x] 4.1 Implement Navigation Service
-    - Create `NavigationService` with methods: getSegmentDetail, getModuleLessons, getLessonContent, getCurrentLesson, canAccessLesson
-    - Implement sequential lesson access enforcement: lesson N accessible only if lessons 1..N-1 completed
-    - First lesson in a module is always accessible
-    - Determine current lesson as first incomplete lesson in sort_order within first incomplete module
-    - Return LESSON_LOCKED error with prerequisite lesson ID when access denied
-    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 3.1, 3.5_
-
-  - [x] 4.2 Write property test for sequential access invariant
-    - **Property 8: Sequential Access Invariant**
-    - Generate random modules with N lessons and completion states, verify access rules
-    - **Validates: Requirements 7.1, 7.2, 7.3, 7.6**
-
-  - [x] 4.3 Write property test for current lesson determination
-    - **Property 9: Current Lesson Determination**
-    - Generate random completion patterns, verify current lesson identification
-    - **Validates: Requirements 7.7, 7.5**
-
-- [x] 5. Lesson Completion Service
-  - [x] 5.1 Implement Completion Service
-    - Create `CompletionService` with `completeLesson(userId, lessonId)` method
-    - Create lesson_completion record with user_id, lesson_id, completed_at
-    - Implement idempotent behavior: duplicate completion returns 200 without new record
-    - Return 404 for non-existent lessons
-    - Enforce segment access check before allowing completion
-    - Return updated progress state with next_lesson_id, module_complete, segment_complete
-    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
-
-  - [x] 5.2 Write property test for lesson completion idempotence
-    - **Property 6: Lesson Completion Idempotence**
-    - Generate random user-lesson pairs, complete N times, verify single record
-    - **Validates: Requirements 6.2, 6.7, 10.6, 10.9**
-
-  - [x] 5.3 Write property test for lesson completion round-trip
-    - **Property 7: Lesson Completion Round-Trip**
-    - Generate random user-lesson, complete then query, verify "completed" status
-    - **Validates: Requirements 6.6**
-
-- [x] 6. Progress Service
-  - [x] 6.1 Implement Progress Service
-    - Create `ProgressService` with getSegmentProgress and getModuleProgress methods
-    - Calculate segment progress: round((completed_lessons / total_lessons) * 100)
-    - Return 0% when segment has zero lessons
-    - Return total lesson count, completed lesson count, and percentage
-    - Return module completion status (complete or in-progress)
-    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
-
-  - [x] 6.2 Write property test for progress percentage calculation
-    - **Property 3: Progress Percentage Calculation**
-    - Generate random completed/total pairs, verify formula
-    - **Validates: Requirements 1.5, 8.1, 8.3, 8.4**
-
-  - [x] 6.3 Write property test for progress invariant
-    - **Property 4: Progress Invariant**
-    - Generate random progress states, verify completed <= total
-    - **Validates: Requirements 8.5**
-
-  - [x] 6.4 Write property test for progress metamorphic property
-    - **Property 5: Progress Metamorphic Property**
-    - Generate random state, complete one lesson, verify +1 increment
-    - **Validates: Requirements 8.6**
-
-- [x] 7. Checkpoint - Backend services complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 7. File Upload System
+  - [x] 7.1 Backend upload infrastructure
+    - Installed `multer` for multipart file handling
+    - Created `POST /api/uploads/slides` — accepts .pptx, .ppt, .pdf (max 50MB)
+    - Created `POST /api/uploads/video` — accepts .mp4, .webm, .ogg, .mov, .avi, .mkv (max 20MB)
+    - Files stored in `backend/uploads/slides/` and `backend/uploads/videos/`
+    - Served as static assets from `/uploads/`
+  - [x] 7.2 Frontend upload utilities
+    - Created `apiUpload<T>()` function for FormData requests
+    - Created `uploadSlides()` and `uploadVideo()` admin service functions
+    - Added Vite proxy for `/uploads` → backend
 
 - [x] 8. Learner API endpoints
-  - [x] 8.1 Implement learner dashboard endpoint
-    - Create GET `/api/learner/segments` returning assigned segments with progress and access status
-    - Include segment title, description, progress_percentage, completed_lessons, total_lessons, access_status, assigned_at
-    - Order segments by assigned_at descending
-    - Display empty state when no assignments exist
-    - Validate with Zod; enforce auth middleware
-    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 1.8_
+  - [x] 8.1 GET `/api/learner/segments` — assigned segments with progress + access status
+  - [x] 8.2 GET `/api/learner/segments/:segmentId` — segment detail with modules (includes `accessible` flag)
+  - [x] 8.3 GET `/api/learner/segments/:segmentId/modules/:moduleId/lessons` — module lessons with completion status
+  - [x] 8.4 GET `/api/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId` — lesson content (text/video/slides)
+  - [x] 8.5 POST `/api/learner/lessons/:lessonId/complete` — mark complete (requires 75% progress)
+  - [x] 8.6 GET `/api/learner/segments/:segmentId/current-lesson` — current lesson for resume
+  - [x] 8.7 POST `/api/learner/lessons/:lessonId/progress` — report engagement evidence
+  - [x] 8.8 GET `/api/learner/lessons/:lessonId/progress` — get current progress
 
-  - [x] 8.2 Implement segment detail endpoint
-    - Create GET `/api/learner/segments/:segmentId` returning segment with modules and progress
-    - Return segment title, description, ordered modules with lesson count and completed count per user
-    - Scope to authenticated user assignments with access check
-    - _Requirements: 3.1, 3.2, 3.3_
+- [x] 9. Backend validation schema updates
+  - [x] 9.1 Updated `createLessonSchema` — discriminated union with text/video/slides
+    - Video: `z.string().min(1)` for video_url (supports both URLs and relative upload paths)
+    - Slides: `z.string().min(1)` for slides_url + required `total_slides`
+  - [x] 9.2 Updated `updateLessonSchema` — same relaxed URL validation
+  - [x] 9.3 Created `reportProgressSchema` — validates progress_percent 0-100
 
-  - [x] 8.3 Implement module lesson listing endpoint
-    - Create GET `/api/learner/segments/:segmentId/modules/:moduleId/lessons` returning lessons with completion status
-    - Return ordered lessons with completion status for requesting user
-    - Enforce segment access middleware
-    - _Requirements: 3.4, 3.5_
+- [x] 10. Admin lesson management updates (slides + video upload)
+  - [x] 10.1 Updated LessonDrawer with slides content type
+    - File upload zone (drag/click) for PPTX/PPT/PDF
+    - Shows uploaded filename and size
+    - Total slides number input
+  - [x] 10.2 Updated LessonDrawer with video upload option
+    - Toggle between "Paste Link" and "Upload File"
+    - Link mode: URL input for YouTube/Vimeo/direct
+    - Upload mode: File upload zone for MP4/WebM/MOV (max 20MB)
+  - [x] 10.3 Fixed lesson edit persistence
+    - LessonDrawer now fetches full lesson detail via `useLesson(id)` when editing
+    - List endpoint doesn't return content fields; detail endpoint does
+  - [x] 10.4 Added `slides` variant to StatusBadge component
+  - [x] 10.5 Updated admin types (LessonContentType includes 'slides', added slidesUrl/totalSlides)
+  - [x] 10.6 Lesson deletion now cleans up `lesson_completions` and `lesson_progress` records
 
-  - [x] 8.4 Implement lesson detail endpoint
-    - Create GET `/api/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId` returning lesson content
-    - Return lesson title, content_body (text) or video_url (video), content_type
-    - Enforce segment access and sequential progression checks
-    - _Requirements: 4.1, 4.2, 4.3, 5.1_
+- [x] 11. Frontend learner pages
+  - [x] 11.1 Learner Dashboard
+    - Welcome message, segment title/description, progress card, Resume Lesson button
+    - Segment Details cards (Duration, Deadline, Time Left)
+    - Module list with status icons (completed/in-progress/locked)
+    - Locked modules shown with lock icon, dimmed, non-clickable
+  - [x] 11.2 My Learning page (`/learner/learning`)
+    - Shows ALL assigned segments with progress bars
+    - Each segment expands into modules (with lock state)
+    - Each module expands into lessons with direct navigation links
+    - Lessons show type icon (video/text/slides) and completion checkmark
+  - [x] 11.3 Lesson Page redesign
+    - Left sidebar: segment info, progress bar, module accordion with expandable lessons
+    - Modules show lock state; locked modules can't expand
+    - Current lesson highlighted in sidebar
+    - Completed checkmark shows even when selected (white on teal background)
+    - Main content: module breadcrumb, status badge, content area, Mark as Complete
 
-  - [x] 8.5 Implement lesson completion endpoint
-    - Create POST `/api/learner/lessons/:lessonId/complete` for marking lessons complete
-    - Enforce segment access check before completion
-    - Return completion result with next_lesson_id
-    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+- [x] 12. Content type viewers (Lesson Page)
+  - [x] 12.1 Video content with progress tracking
+    - `react-player@2` (lazy loaded) with `onProgress` callback
+    - Reports watch percentage to backend every 5% increment
+    - Resolves uploaded video paths to full URLs for playback
+  - [x] 12.2 Slides content viewer
+    - PDF files: rendered directly in iframe
+    - PPTX/PPT files: download button with slide thumbnail navigation
+    - Slide-by-slide navigation with viewed tracking
+    - Reports (viewedSlides / totalSlides * 100) as progress
+  - [x] 12.3 Text content with scroll tracking
+    - Scrollable container with scroll position monitoring
+    - Reports scroll percentage as progress
+    - Content that fits without scrolling = 100% immediately
 
-  - [x] 8.6 Implement segment access duration check utility endpoint
-    - Create GET `/api/learner/segments/:segmentId/current-lesson` returning current lesson for user
-    - Implement access duration check utility used across endpoints
-    - _Requirements: 2.5, 2.6, 7.7_
+- [x] 13. Mark as Complete — progress-gated
+  - [x] 13.1 Button disabled until `canComplete: true` (progress >= 75%)
+  - [x] 13.2 Shows progress hint when insufficient ("Complete at least 75%...")
+  - [x] 13.3 Standard button size (not full width)
+  - [x] 13.4 Confirmation prompt before submission
+  - [x] 13.5 On success: navigates to next lesson or back to dashboard if segment complete
 
-  - [x] 8.7 Write property test for ordering invariant
-    - **Property 10: Ordering Invariant**
-    - Generate random segment/module lists, verify ordering (segments by assigned_at desc, modules by sort_order asc)
-    - **Validates: Requirements 1.8, 3.2**
+- [x] 14. Layout and navigation
+  - [x] 14.1 Learner sidebar: Dashboard, My Learning, Profile + Logout
+  - [x] 14.2 Removed top-right user name/profile section (desktop has no header bar)
+  - [x] 14.3 Admin-style heading + divider pattern on all learner pages
+    - Container: `pb-4 pt-1 lg:px-8`
+    - Heading: `text-heading-page text-navy`
+    - Description: `text-body text-muted-500`
+    - Divider: `border-b border-muted-200 mb-6`
+  - [x] 14.4 Mobile: hamburger menu only (lg:hidden), same as admin layout
 
-- [x] 9. Checkpoint - API endpoints complete
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 15. Caching and state management
+  - [x] 15.1 Set React Query staleTime to 0 (always refetch on mount)
+  - [x] 15.2 Enable refetchOnWindowFocus
+  - [x] 15.3 Clear query cache on logout (`queryClient.clear()`)
+  - [x] 15.4 Invalidate relevant queries on lesson completion (segment detail, modules, progress, segments list)
 
-- [x] 10. Frontend API clients and hooks
-  - [x] 10.1 Create learner API client and React hooks
-    - Create API client functions for all learner endpoints
-    - Create React Query hooks: useAssignedSegments, useSegmentDetail, useModuleLessons, useLessonContent, useCompleteLesson, useSegmentProgress
-    - Handle loading, error, and success states
-    - _Requirements: 9.4, 9.5_
+- [x] 16. Error handling improvements
+  - [x] 16.1 LessonDrawer shows actual validation error details (not generic "Validation failed")
+    - Reads `error.details` object values for field-specific messages
 
-- [x] 11. Frontend learner dashboard and segment pages
-  - [x] 11.1 Implement Learner Dashboard page
-    - Create LearnerDashboard page with segment card grid layout
-    - Display assigned segments with progress percentage, completed step count, and access status (active/expired)
-    - Implement "Your Active Training" heading, progress cards, segment detail cards (Duration, Deadline, Time Left), and resume action
-    - Show empty state when no assignments
-    - Implement responsive layout: card grid at >=1024px, single-column stacked at <1024px
-    - _Requirements: 1.1, 1.2, 1.6, 9.1, 9.2_
+## Architecture Decisions
 
-  - [x] 11.2 Implement Segment Detail page with module accordion
-    - Create SegmentDetailPage with ModuleAccordion component
-    - Display modules in sort_order with progress indicators (completed lessons / total)
-    - Implement accordion states: completed (green check), current/in-progress (clock icon), locked (muted/disabled with lock icon)
-    - Show segment content accordion with module rows
-    - Navigate to module lesson list on selection
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 9.7_
+| Decision | Rationale |
+|----------|-----------|
+| Module-level locking (not lesson-level) | Learners can freely explore lessons within a module; must complete module before advancing |
+| 75% engagement gate for completion | Prevents gaming — users must actually watch/read/view content |
+| react-player v2 for video | Provides `onProgress` callback with `played` percentage; v3 lacks this |
+| Atomic upsert for progress | Prevents race condition from rapid progress reports (GREATEST function) |
+| File uploads stored locally | Simple self-hosted approach; easily swappable to S3 later |
+| staleTime: 0 | Ensures fresh data on every navigation; completion state updates immediately |
+| Empty modules don't block | Prevents admin mistakes from locking learners out of later modules |
 
-  - [x] 11.3 Implement reusable SegmentAccordion and ModuleLessonTimeline components
-    - Create SegmentAccordion with expandable module rows
-    - Create LessonTimeline with vertical timeline, status dots (completed/current/locked), and lesson metadata (Video/Article, duration)
-    - _Requirements: 3.2, 3.3, 3.4, 3.5_
+## File Locations
 
-- [x] 12. Frontend lesson view
-  - [x] 12.1 Implement Lesson View page with text and video content
-    - Create LessonPage with contextual left panel (back to dashboard, segment summary, progress indicator, module accordion)
-    - Implement text content renderer displaying lesson title and full content_body
-    - Implement video embed with 16:9 responsive iframe for YouTube/Vimeo URLs
-    - Display video_url as clickable external link when not a supported embed format
-    - Show navigation context: current module title and lesson position (e.g., "Lesson 3 of 7")
-    - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6, 5.1, 5.2, 5.3, 5.4_
+### Backend
+- `src/db/schema/lessons.ts` — lesson schema with slides fields
+- `src/db/schema/lesson-progress.ts` — progress evidence table
+- `src/schemas/lesson.schemas.ts` — Zod validation (text/video/slides/progress)
+- `src/services/navigation.service.ts` — module accessibility logic
+- `src/services/completion.service.ts` — completion with access checks
+- `src/services/lesson.service.ts` — CRUD with cleanup on delete
+- `src/routes/learner.routes.ts` — all learner endpoints + progress
+- `src/routes/upload.routes.ts` — file upload endpoints (slides + video)
+- `drizzle/0009_add_slides_and_progress.sql` — migration
 
-  - [x] 12.2 Implement Mark as Complete action and lesson navigation
-    - Create MarkCompleteButton with confirmation prompt before submission
-    - Show "Mark as Complete" when lesson not completed; show "Completed" indicator when done
-    - Implement Previous/Next navigation buttons with Next disabled when next lesson is locked
-    - Update UI to completed state and enable next lesson navigation without full page reload on success
-    - _Requirements: 4.4, 4.5, 5.5, 5.6, 6.1, 9.6, 9.9, 9.10_
-
-- [x] 13. Frontend responsive and mobile behavior
-  - [x] 13.1 Implement mobile lesson dashboard, lesson view, and module drawer
-    - Implement mobile single-column stacked cards for dashboard
-    - Implement mobile lesson header with back arrow, module/lesson context, status badge, menu icon
-    - Implement module navigation as drawer/overlay on mobile
-    - Render text content and video embeds at full container width with appropriate padding on mobile
-    - _Requirements: 9.2, 9.3_
-
-  - [x] 13.2 Implement loading, error, and empty states
-    - Display loading indicators during API requests
-    - Display user-visible error messages without technical details on API failure
-    - Display learner name and profile link in navigation header
-    - _Requirements: 9.4, 9.5, 9.8_
-
-- [x] 14. Frontend learner profile enhancements
-  - [x] 14.1 Update learner profile page with phone and job title
-    - Update ProfilePage component to display phone number and job title fields
-    - Add phone and job title to edit form with validation
-    - Display profile picture with lazy loading (`loading="lazy"` attribute)
-    - Update profile service and backend to handle phone and job title updates
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6_
-
-- [x] 15. Pagination and search for large lists in Learner Dashboard
-  - [x] 15.1 Add pagination support to learner dashboard
-    - Backend: Update segment assignment list endpoint to support `page`, `limit`, `search` query parameters
-    - Frontend: Update useAssignedSegments hook to accept pagination params
-    - Update LearnerDashboard to show paginated segments with pagination UI (Previous/Next buttons, page info)
-    - Add search bar to filter segments by title
-    - Show "Page X of Y (Total Z items)" pagination info
-    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.7_
-
-- [x] 16. Searchable dropdowns for large user/segment lists in assignment workflows
-  - [x] 16.1 Create and integrate SearchableDropdown component (ongoing from M2)
-    - Frontend: Reuse SearchableDropdown component created in M2 for learner segment/user selection
-    - Implement keyboard navigation and accessibility
-    - Support search filtering and remote search
-    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
-
-- [x] 17. Final checkpoint - All pagination and profile features integrated
-  - Ensure all tests pass, ask the user if questions arise.
-
-## Notes
-
-- Tasks marked with `*` are optional and can be skipped for faster MVP
-- Each task references specific requirements for traceability
-- Checkpoints ensure incremental validation
-- Property tests validate universal correctness properties from the design document using `fast-check`
-- Unit tests validate specific examples and edge cases
-- The tech stack is TypeScript throughout: React + Vite frontend, Express + Drizzle backend
-- UI implementation should follow `.kiro/steering/ui-style-guide.md` and `.kiro/context/screenshot-catalog.md`
-- Leave final UI polish, page hierarchy, and responsive fine-tuning for Figma attachment review
-
-## Task Dependency Graph
-
-```json
-{
-  "waves": [
-    { "id": 0, "tasks": ["1.1", "1.2"] },
-    { "id": 1, "tasks": ["2.1", "2.2"] },
-    { "id": 2, "tasks": ["2.3", "2.4", "4.1"] },
-    { "id": 3, "tasks": ["4.2", "4.3", "5.1"] },
-    { "id": 4, "tasks": ["5.2", "5.3", "6.1"] },
-    { "id": 5, "tasks": ["6.2", "6.3", "6.4", "8.1", "8.2"] },
-    { "id": 6, "tasks": ["8.3", "8.4", "8.5", "8.6"] },
-    { "id": 7, "tasks": ["8.7", "10.1"] },
-    { "id": 8, "tasks": ["11.1", "11.2", "11.3"] },
-    { "id": 9, "tasks": ["12.1", "12.2"] },
-    { "id": 10, "tasks": ["13.1", "13.2"] },
-    { "id": 11, "tasks": ["14.1", "15.1"] },
-    { "id": 12, "tasks": ["16.1"] }
-  ]
-}
-```
+### Frontend
+- `src/pages/LearnerDashboard.tsx` — main dashboard
+- `src/pages/learner/MyLearningPage.tsx` — all segments/modules/lessons
+- `src/pages/learner/LessonPage.tsx` — lesson viewer with progress tracking
+- `src/pages/admin/LessonDrawer.tsx` — admin lesson form (text/video/slides)
+- `src/components/layout/LearnerLayout.tsx` — learner shell (no top header)
+- `src/components/learner/MarkCompleteButton.tsx` — progress-gated button
+- `src/hooks/useLearner.ts` — React Query hooks (including progress)
+- `src/services/learner.service.ts` — API client functions
+- `src/services/api.ts` — `apiUpload()` for multipart requests
+- `src/types/learner.ts` — types with slides + progress
+- `src/types/admin.ts` — types with slides content type
