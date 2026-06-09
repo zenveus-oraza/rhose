@@ -1033,25 +1033,36 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
   });
 
   it('should return accurate counts after creating segments, modules, lessons, and users', async () => {
-    const mockFrom = vi.fn()
-      .mockResolvedValueOnce([{ count: 3 }])   // 3 segments
-      .mockResolvedValueOnce([{ count: 7 }])   // 7 modules
-      .mockResolvedValueOnce([{ count: 15 }])  // 15 lessons
-      .mockResolvedValueOnce([{ count: 10 }]); // 10 users
+    let callIndex = 0;
+    const smartFrom = vi.fn().mockImplementation(() => {
+      callIndex++;
+      if (callIndex === 1) {
+        return { where: vi.fn().mockResolvedValue([{ count: 3 }]) };
+      } else if (callIndex === 2) {
+        return Promise.resolve([{ count: 7 }]);
+      } else if (callIndex === 3) {
+        return Promise.resolve([{ count: 15 }]);
+      } else if (callIndex === 4) {
+        return Promise.resolve([{ count: 10 }]);
+      } else {
+        return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
+      }
+    });
 
-    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: mockFrom });
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: smartFrom });
 
     const { default: adminRouter } = await import('../routes/admin.routes.js');
 
     // Find the dashboard/stats route handler
     const layer = adminRouter.stack.find(
-      (l: { route?: { path: string; methods: { get?: boolean } } }) =>
+      (l: any) =>
         l.route?.path === '/dashboard/stats' && l.route?.methods?.get
     );
 
     expect(layer).toBeDefined();
 
-    const handler = layer!.route!.stack[0].handle;
+    const routeStack = layer!.route!.stack;
+    const handler = routeStack[routeStack.length - 1].handle;
     const mockReq = {} as Request;
     const mockRes = {
       status: vi.fn().mockReturnThis(),
@@ -1069,27 +1080,35 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
         totalModules: 7,
         totalLessons: 15,
         totalUsers: 10,
+        endingSoonCount: 0,
       },
     });
   });
 
   it('should return zero counts when no entities exist', async () => {
-    const mockFrom = vi.fn()
-      .mockResolvedValueOnce([{ count: 0 }])
-      .mockResolvedValueOnce([{ count: 0 }])
-      .mockResolvedValueOnce([{ count: 0 }])
-      .mockResolvedValueOnce([{ count: 0 }]);
+    let callIndex = 0;
+    const smartFrom = vi.fn().mockImplementation(() => {
+      callIndex++;
+      if (callIndex === 1) {
+        return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
+      } else if (callIndex <= 4) {
+        return Promise.resolve([{ count: 0 }]);
+      } else {
+        return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
+      }
+    });
 
-    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: mockFrom });
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: smartFrom });
 
     const { default: adminRouter } = await import('../routes/admin.routes.js');
 
     const layer = adminRouter.stack.find(
-      (l: { route?: { path: string; methods: { get?: boolean } } }) =>
+      (l: any) =>
         l.route?.path === '/dashboard/stats' && l.route?.methods?.get
     );
 
-    const handler = layer!.route!.stack[0].handle;
+    const routeStack = layer!.route!.stack;
+    const handler = routeStack[routeStack.length - 1].handle;
     const mockReq = {} as Request;
     const mockRes = {
       status: vi.fn().mockReturnThis(),
@@ -1107,28 +1126,39 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
         totalModules: 0,
         totalLessons: 0,
         totalUsers: 0,
+        endingSoonCount: 0,
       },
     });
   });
 
   it('should reflect incremented counts after entity creation', async () => {
-    // Simulate state after creating 1 segment, 2 modules, 4 lessons, 5 users
-    const mockFrom = vi.fn()
-      .mockResolvedValueOnce([{ count: 1 }])
-      .mockResolvedValueOnce([{ count: 2 }])
-      .mockResolvedValueOnce([{ count: 4 }])
-      .mockResolvedValueOnce([{ count: 5 }]);
+    let callIndex = 0;
+    const smartFrom = vi.fn().mockImplementation(() => {
+      callIndex++;
+      if (callIndex === 1) {
+        return { where: vi.fn().mockResolvedValue([{ count: 1 }]) };
+      } else if (callIndex === 2) {
+        return Promise.resolve([{ count: 2 }]);
+      } else if (callIndex === 3) {
+        return Promise.resolve([{ count: 4 }]);
+      } else if (callIndex === 4) {
+        return Promise.resolve([{ count: 5 }]);
+      } else {
+        return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
+      }
+    });
 
-    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: mockFrom });
+    (db.select as ReturnType<typeof vi.fn>).mockReturnValue({ from: smartFrom });
 
     const { default: adminRouter } = await import('../routes/admin.routes.js');
 
     const layer = adminRouter.stack.find(
-      (l: { route?: { path: string; methods: { get?: boolean } } }) =>
+      (l: any) =>
         l.route?.path === '/dashboard/stats' && l.route?.methods?.get
     );
 
-    const handler = layer!.route!.stack[0].handle;
+    const routeStack = layer!.route!.stack;
+    const handler = routeStack[routeStack.length - 1].handle;
     const mockReq = {} as Request;
     const mockRes = {
       status: vi.fn().mockReturnThis(),
@@ -1146,6 +1176,7 @@ describe('Integration: Dashboard Stats Accuracy After Entity Creation', () => {
         totalModules: 2,
         totalLessons: 4,
         totalUsers: 5,
+        endingSoonCount: 0,
       },
     });
   });

@@ -8,6 +8,7 @@ import userRoutes from './routes/user.routes.js';
 import adminRouter from './routes/admin.routes.js';
 import learnerRouter from './routes/learner.routes.js';
 import uploadRouter from './routes/upload.routes.js';
+import progressRouter from './routes/progress.routes.js';
 
 const app = express();
 const PORT = env.PORT;
@@ -31,6 +32,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRouter);
 app.use('/api/learner', learnerRouter);
 app.use('/api/uploads', uploadRouter);
+app.use('/api/progress', progressRouter);
 
 // --- Register routes above this line ---
 

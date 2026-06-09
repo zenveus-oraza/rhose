@@ -53,3 +53,16 @@ export {
   type AdminUpdateUserInput,
   type UserListQueryInput,
 } from './user-management.schemas.js';
+
+export {
+  createQuizSchema,
+  submitQuizAttemptSchema,
+  quizOptionSchema,
+  quizQuestionSchema,
+  questionTypeValues,
+  type QuestionType,
+  type QuizOptionInput,
+  type QuizQuestionInput,
+  type CreateQuizInput,
+  type SubmitQuizAttemptInput,
+} from './quiz.schemas.js';

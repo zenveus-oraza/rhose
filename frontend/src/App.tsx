@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { PublicRoute } from '@/components/PublicRoute';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { LearnerLayout } from '@/components/layout/LearnerLayout';
+import { LessonLayout } from '@/components/layout/LessonLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
@@ -78,8 +79,10 @@ function AppRoutes() {
           <Route path="/learner/learning" element={<MyLearningPage />} />
           <Route path="/learner/profile" element={<ProfilePage />} />
           <Route path="/learner/segments/:segmentId" element={<SegmentDetailPage />} />
-          <Route path="/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId" element={<LessonPage />} />
           <Route path="/learner/*" element={<LearnerDashboard />} />
+        </Route>
+        <Route element={<LessonLayout />}>
+          <Route path="/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId" element={<LessonPage />} />
         </Route>
       </Route>
 

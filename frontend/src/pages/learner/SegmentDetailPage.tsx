@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, Lock, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSegmentDetail } from '@/hooks/useLearner';
+import { QuizSection } from '@/components/learner/QuizSection';
 import type { ModuleSummary } from '@/types/learner';
 
 type ModuleStatus = 'completed' | 'current' | 'locked';
@@ -162,7 +163,7 @@ export function SegmentDetailPage() {
   };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       {/* Segment header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{segment.title}</h1>
@@ -171,28 +172,38 @@ export function SegmentDetailPage() {
         )}
       </div>
 
-      {/* Module Accordion */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-700">Modules</h2>
+      {/* Responsive layout: card side-by-side ≥1024px, stacked <1024px */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Module Accordion — takes 2 cols on large screens */}
+        <div className="lg:col-span-2">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b bg-gray-50">
+              <h2 className="text-sm font-semibold text-gray-700">Modules</h2>
+            </div>
+
+            {sortedModules.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-sm text-gray-500">No modules available yet.</p>
+              </div>
+            ) : (
+              sortedModules.map((mod, index) => (
+                <ModuleRow
+                  key={mod.id}
+                  module={mod}
+                  status={statuses[index]}
+                  isExpanded={expandedModuleId === mod.id}
+                  onToggle={() => handleToggle(mod.id)}
+                  segmentId={segmentId}
+                />
+              ))
+            )}
+          </div>
         </div>
 
-        {sortedModules.length === 0 ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-sm text-gray-500">No modules available yet.</p>
-          </div>
-        ) : (
-          sortedModules.map((mod, index) => (
-            <ModuleRow
-              key={mod.id}
-              module={mod}
-              status={statuses[index]}
-              isExpanded={expandedModuleId === mod.id}
-              onToggle={() => handleToggle(mod.id)}
-              segmentId={segmentId}
-            />
-          ))
-        )}
+        {/* Quiz Section — takes 1 col on large screens, stacks below on mobile */}
+        <div className="lg:col-span-1">
+          <QuizSection segmentId={segmentId} />
+        </div>
       </div>
     </div>
   );

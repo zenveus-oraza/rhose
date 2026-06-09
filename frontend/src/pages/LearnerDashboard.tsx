@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, ChevronRight, Lock } from 'lucide-react';
+import { CheckCircle2, Clock, ChevronRight, Lock, FileQuestion } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAssignedSegments, useSegmentDetail, useCurrentLesson } from '@/hooks/useLearner';
+import { useLearnerQuiz, useQuizAttemptHistory } from '@/hooks/useQuiz';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import type { LearnerSegment } from '@/types/learner';
@@ -194,6 +195,58 @@ export function LearnerDashboard() {
               <ModuleStatusIcon module={mod} />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Quiz Section — take quiz for the active segment */}
+      <QuizCard segmentId={activeSegment.segmentId} />
+    </div>
+  );
+}
+
+
+// --- Quiz Card for Dashboard ---
+
+function QuizCard({ segmentId }: { segmentId: string }) {
+  const navigate = useNavigate();
+  const { data: quiz, isLoading: quizLoading } = useLearnerQuiz(segmentId);
+  const { data: attempts = [] } = useQuizAttemptHistory(segmentId);
+
+  // Don't render if no quiz exists or still loading
+  if (quizLoading || !quiz) return null;
+
+  const bestAttempt = attempts.length > 0
+    ? attempts.reduce((best, a) => (a.percentage > best.percentage ? a : best), attempts[0])
+    : null;
+
+  return (
+    <div className="mt-8">
+      <h3 className="text-base font-semibold text-navy mb-4">Segment Quiz</h3>
+      <div className="border border-muted-200 rounded-xl bg-white p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 shrink-0">
+            <FileQuestion className="h-5 w-5 text-teal" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-semibold text-navy">{quiz.title || 'Segment Quiz'}</h4>
+            <p className="text-xs text-muted-500 mt-0.5">
+              {quiz.questions.length} question{quiz.questions.length !== 1 ? 's' : ''} • Optional
+            </p>
+            {bestAttempt && (
+              <p className="text-xs text-teal font-medium mt-1">
+                Best score: {bestAttempt.percentage}% ({attempts.length} attempt{attempts.length !== 1 ? 's' : ''})
+              </p>
+            )}
+            <p className="text-xs text-muted-400 mt-2 italic">
+              This quiz is optional and does not affect your progress.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate(`/learner/segments/${segmentId}`)}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-white hover:bg-secondary/90 transition"
+          >
+            {attempts.length > 0 ? 'Retake Quiz' : 'Take Quiz'}
+          </button>
         </div>
       </div>
     </div>

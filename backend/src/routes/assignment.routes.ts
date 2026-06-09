@@ -1,5 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { eq } from 'drizzle-orm';
+import { db } from '../db/index.js';
+import { segments } from '../db/schema/segments.js';
 import { assignmentService } from '../services/assignment.service.js';
+import { activityService } from '../services/activity.service.js';
 import { createAssignmentSchema } from '../schemas/assignment.schemas.js';
 import { sendSuccess } from '../utils/response.js';
 
@@ -25,6 +29,30 @@ assignmentRouter.post(
         segmentId: data.segment_id,
         accessDurationDays: data.access_duration_days,
       });
+
+      // Fire-and-forget: track segment_assigned activity event
+      (async () => {
+        try {
+          const [segmentRecord] = await db
+            .select({ title: segments.title })
+            .from(segments)
+            .where(eq(segments.id, data.segment_id))
+            .limit(1);
+
+          const segmentTitle = segmentRecord?.title ?? 'a segment';
+          // Track from admin perspective (req.user is the admin performing the action)
+          const adminUserId = req.user!.userId;
+          await activityService.trackEvent({
+            userId: adminUserId,
+            action: 'segment_assigned',
+            description: `Assigned ${segmentTitle}`,
+            detail: segmentTitle,
+          });
+        } catch {
+          // Activity tracking failures must not affect the main flow
+        }
+      })();
+
       sendSuccess(res, assignment, 201);
     } catch (error) {
       next(error);

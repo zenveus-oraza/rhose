@@ -164,7 +164,9 @@ function arbOperation(moduleCount: number): fc.Arbitrary<Operation> {
  * current state (e.g., delete/reorder only when modules exist).
  * Uses fc.commands-like approach with a custom chain.
  */
-function arbOperationSequence(minOps: number, maxOps: number): fc.Arbitrary<Operation[]> {
+// @ts-ignore -- helper kept for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _arbOperationSequence(minOps: number, maxOps: number): fc.Arbitrary<Operation[]> {
   return fc.integer({ min: minOps, max: maxOps }).chain((numOps) => {
     // We build the sequence step by step, tracking module count
     let currentCount = 0;

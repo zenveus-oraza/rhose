@@ -2,15 +2,19 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { eq, desc, ilike, and, count, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { segmentAssignments, segments, lessonProgress } from '../db/schema/index.js';
+import { segmentAssignments, segments, lessonProgress, lessonCompletions } from '../db/schema/index.js';
+import { lessons } from '../db/schema/lessons.js';
+import { modules } from '../db/schema/modules.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireLearner, requireSegmentAccess } from '../middleware/segment-access.js';
 import { progressService } from '../services/progress.service.js';
 import { navigationService } from '../services/navigation.service.js';
 import { completionService } from '../services/completion.service.js';
 import type { CompletionResult } from '../services/completion.service.js';
+import { activityService } from '../services/activity.service.js';
 import { reportProgressSchema } from '../schemas/lesson.schemas.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import quizLearnerRouter from './quiz-learner.routes.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +60,9 @@ const learnerRouter = Router();
 
 // Apply auth middleware to all learner routes
 learnerRouter.use(authenticate, requireLearner);
+
+// Mount quiz sub-router with segment access enforcement
+learnerRouter.use('/segments/:segmentId/quiz', requireSegmentAccess, quizLearnerRouter);
 
 /**
  * GET /api/learner/segments
@@ -273,6 +280,57 @@ learnerRouter.get(
           totalSlides: lesson.totalSlides,
         },
       });
+
+      // Fire-and-forget: track lesson_resumed if learner has prior progress but hasn't completed
+      (async () => {
+        try {
+          // Check if lesson already completed
+          const [completion] = await db
+            .select({ lessonId: lessonCompletions.lessonId })
+            .from(lessonCompletions)
+            .where(and(eq(lessonCompletions.userId, userId), eq(lessonCompletions.lessonId, lessonId)))
+            .limit(1);
+
+          if (completion) return; // Already completed — not a "resume"
+
+          // Check if there's existing progress > 0
+          const [progress] = await db
+            .select({ progressPercent: lessonProgress.progressPercent })
+            .from(lessonProgress)
+            .where(and(eq(lessonProgress.userId, userId), eq(lessonProgress.lessonId, lessonId)))
+            .limit(1);
+
+          if (progress && progress.progressPercent > 0) {
+            // Get module info for the detail line
+            const [lessonRecord] = await db
+              .select({ title: lessons.title, moduleId: lessons.moduleId })
+              .from(lessons)
+              .where(eq(lessons.id, lessonId))
+              .limit(1);
+
+            let detail = lessonRecord?.title ?? '';
+            if (lessonRecord?.moduleId) {
+              const [mod] = await db
+                .select({ title: modules.title, sortOrder: modules.sortOrder })
+                .from(modules)
+                .where(eq(modules.id, lessonRecord.moduleId))
+                .limit(1);
+              if (mod) {
+                detail = `Module ${mod.sortOrder + 1} • ${lesson.contentType} (${progress.progressPercent}%)`;
+              }
+            }
+
+            await activityService.trackEvent({
+              userId,
+              action: 'lesson_resumed',
+              description: `Resumed Lesson: ${lesson.title}`,
+              detail,
+            });
+          }
+        } catch {
+          // Activity tracking failures must not affect the main flow
+        }
+      })();
     } catch (error) {
       next(error);
     }
@@ -330,6 +388,48 @@ learnerRouter.post(
 
       // Success — return completion data
       const completionResult = result as CompletionResult;
+
+      // Fire-and-forget: track lesson_completed activity event
+      if (!completionResult.alreadyCompleted) {
+        (async () => {
+          try {
+            // Fetch lesson title for the activity description
+            const [lessonRecord] = await db
+              .select({ title: lessons.title, moduleId: lessons.moduleId })
+              .from(lessons)
+              .where(eq(lessons.id, lessonId))
+              .limit(1);
+
+            const lessonTitle = lessonRecord?.title ?? 'a lesson';
+            await activityService.trackEvent({
+              userId,
+              action: 'lesson_completed',
+              description: `Completed "${lessonTitle}"`,
+              detail: lessonTitle,
+            });
+
+            // Track module_completed if this lesson completion finished the module
+            if (completionResult.moduleComplete && lessonRecord?.moduleId) {
+              const [mod] = await db
+                .select({ title: modules.title })
+                .from(modules)
+                .where(eq(modules.id, lessonRecord.moduleId))
+                .limit(1);
+
+              const moduleTitle = mod?.title ?? 'a module';
+              await activityService.trackEvent({
+                userId,
+                action: 'module_completed',
+                description: `Completed Module "${moduleTitle}"`,
+                detail: moduleTitle,
+              });
+            }
+          } catch {
+            // Activity tracking failures must not affect the main flow
+          }
+        })();
+      }
+
       sendSuccess(res, {
         alreadyCompleted: completionResult.alreadyCompleted,
         nextLessonId: completionResult.nextLessonId,

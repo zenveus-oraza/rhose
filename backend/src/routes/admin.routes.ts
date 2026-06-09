@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { count, ne } from 'drizzle-orm';
+import { count, ne, sql } from 'drizzle-orm';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { db } from '../db/index.js';
 import { segments } from '../db/schema/segments.js';
@@ -34,11 +34,17 @@ adminRouter.get(
       const [lessonCount] = await db.select({ count: count() }).from(lessons);
       const [userCount] = await db.select({ count: count() }).from(users);
 
+      // Count segments that have at least one assignment expiring within 7 days
+      const [endingSoonResult] = await db.select({ count: sql<number>`count(DISTINCT sa.segment_id)::int` })
+        .from(sql`"segment_assignments" sa`)
+        .where(sql`sa.access_duration_days IS NOT NULL AND (sa.assigned_at + (sa.access_duration_days * INTERVAL '1 day')) BETWEEN NOW() AND (NOW() + INTERVAL '7 days')`);
+
       sendSuccess(res, {
         totalSegments: segmentCount.count,
         totalModules: moduleCount.count,
         totalLessons: lessonCount.count,
         totalUsers: userCount.count,
+        endingSoonCount: endingSoonResult?.count ?? 0,
       });
     } catch (error) {
       next(error);
@@ -52,9 +58,12 @@ import { segmentModuleRouter, moduleRouter } from './module.routes.js';
 import { moduleLessonRouter, lessonRouter } from './lesson.routes.js';
 import userManagementRoutes from './user-management.routes.js';
 import { assignmentRouter, segmentAssignmentRouter, userAssignmentRouter } from './assignment.routes.js';
+import quizAdminRouter from './quiz-admin.routes.js';
+import activityRouter from './activity.routes.js';
 
 // Register more specific nested routes before generic ones
 adminRouter.use('/modules/:moduleId/lessons', moduleLessonRouter);
+adminRouter.use('/segments/:segmentId/quiz', quizAdminRouter);
 adminRouter.use('/segments/:segmentId/modules', segmentModuleRouter);
 adminRouter.use('/segments/:segmentId/assignments', segmentAssignmentRouter);
 adminRouter.use('/users/:userId/assignments', userAssignmentRouter);
@@ -63,5 +72,6 @@ adminRouter.use('/modules', moduleRouter);
 adminRouter.use('/lessons', lessonRouter);
 adminRouter.use('/users', userManagementRoutes);
 adminRouter.use('/assignments', assignmentRouter);
+adminRouter.use('/activity', activityRouter);
 
 export default adminRouter;

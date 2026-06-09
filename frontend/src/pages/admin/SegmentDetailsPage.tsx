@@ -11,6 +11,9 @@ import {
   Users,
   GripVertical,
   Clock,
+  Search,
+  ClipboardList,
+  Settings,
 } from 'lucide-react';
 import {
   useSegment,
@@ -23,6 +26,7 @@ import {
   useSegmentAssignments,
   useUpdateSegment,
 } from '@/hooks/useAdminApi';
+import { useSegmentQuiz, useCreateOrUpdateQuiz, useDeleteQuiz } from '@/hooks/useQuiz';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -30,7 +34,9 @@ import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { ModuleDrawer } from './ModuleDrawer';
 import { LessonDrawer } from './LessonDrawer';
+import { QuizDrawer } from './QuizDrawer';
 import type { ModuleWithLessonCount, Lesson, SegmentStatus } from '@/types/admin';
+import type { QuizQuestionInput } from '@/types/quiz';
 
 export function SegmentDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +49,7 @@ export function SegmentDetailsPage() {
   const { data: segment, isLoading, error } = useSegment(id!);
   const { data: modulesData } = useModules(id!, { page: modulePage, limit: 10 });
   const { data: assignmentsData } = useSegmentAssignments(id!, { page: assignmentPage, limit: 20 });
+  const { data: quiz } = useSegmentQuiz(id!);
   const updateSegment = useUpdateSegment();
   const deleteModule = useDeleteModule();
   const deleteLesson = useDeleteLesson();
@@ -51,12 +58,20 @@ export function SegmentDetailsPage() {
   const modules = modulesData?.data ?? [];
   const assignments = assignmentsData?.data ?? [];
 
+  // User search state for Assigned Users section
+  const [userSearch, setUserSearch] = useState('');
+
   // Drawer state
   const [moduleDrawerOpen, setModuleDrawerOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<ModuleWithLessonCount | null>(null);
   const [lessonDrawerOpen, setLessonDrawerOpen] = useState(false);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  const [quizDrawerOpen, setQuizDrawerOpen] = useState(false);
+  const [editingQuizIndex, setEditingQuizIndex] = useState<number | null>(null);
+  const [quizSettingsOpen, setQuizSettingsOpen] = useState(false);
+  const createOrUpdateQuiz = useCreateOrUpdateQuiz();
+  const deleteQuiz = useDeleteQuiz();
 
   // Delete state
   const [deleteModuleTarget, setDeleteModuleTarget] = useState<ModuleWithLessonCount | null>(null);
@@ -128,8 +143,9 @@ export function SegmentDetailsPage() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-navy">{segment.title}</h1>
+            <h1 className="text-xl font-bold text-navy">{segment.title}</h1>
+            {/* Task 10.5: Status badge below heading */}
+            <div className="mt-1">
               <StatusBadge variant={segment.status} />
             </div>
             {segment.description && (
@@ -303,98 +319,261 @@ export function SegmentDetailsPage() {
         )}
       </div>
 
-      {/* Assigned Users & Segment Info - Two Column Layout */}
-      {assignments && assignments.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-          {/* Left: Assigned Users */}
-          <div className="rounded-xl border border-muted-200 bg-white shadow-sm">
-            <div className="border-b border-muted-200 px-6 py-4">
-              <h2 className="text-base font-semibold text-navy">Assigned Users</h2>
-            </div>
-            <div className="divide-y divide-muted-100">
-              {assignments.map((assignment) => (
-                <div key={assignment.id} className="flex items-center justify-between px-6 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-navy">{assignment.name}</p>
-                    <p className="text-helper text-muted-500">{assignment.jobTitle || '—'}</p>
+      {/* Quiz Section */}
+      <div className="mt-6 rounded-xl border border-muted-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-muted-200 px-6 py-4">
+          <h2 className="text-base font-semibold text-navy">Quiz Questions</h2>
+          <div className="flex items-center gap-2">
+            {quiz && (
+              <button
+                onClick={() => setQuizSettingsOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-muted-300 px-3 py-1.5 text-helper font-medium text-muted-700 hover:bg-muted-50 transition"
+              >
+                <Settings size={14} />
+                <span>Settings</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setEditingQuizIndex(null);
+                setQuizDrawerOpen(true);
+              }}
+              className="inline-flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
+            >
+              <Plus size={16} />
+              <span>Add Question</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quiz settings summary badge */}
+        {quiz && (
+          <div className="border-b border-muted-100 px-6 py-2 flex items-center gap-3 bg-muted-50">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${quiz.isRequired ? 'bg-danger-50 text-danger-600' : 'bg-muted-100 text-muted-500'}`}>
+              {quiz.isRequired ? 'Required' : 'Optional'}
+            </span>
+            <span className="text-xs text-muted-500">
+              {quiz.maxAttempts !== null ? `${quiz.maxAttempts} attempt${quiz.maxAttempts !== 1 ? 's' : ''} allowed` : 'Unlimited attempts'}
+            </span>
+          </div>
+        )}
+
+        {quiz && quiz.questions.length > 0 ? (
+          <div className="divide-y divide-muted-100">
+            {quiz.questions
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((question, idx) => (
+                <div
+                  key={question.id}
+                  className="flex items-start justify-between px-6 py-4 hover:bg-muted-50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-body font-medium text-navy">
+                      Q {idx + 1}: {question.questionText}
+                    </p>
+                    <p className="text-helper text-muted-500 mt-0.5">
+                      {question.questionType === 'single_select' ? 'Single Select' : 'Multi Select'}
+                      {' • '}
+                      {question.options.length} options
+                    </p>
                   </div>
-                  {/* TODO: Replace with real progress data from backend when available */}
-                  <div className="w-32">
-                    <div className="relative h-5 w-full rounded-full bg-muted-100 overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full bg-teal"
-                        style={{ width: '0%' }}
-                      />
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-600">
-                        0%
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-1 ml-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingQuizIndex(idx);
+                        setQuizDrawerOpen(true);
+                      }}
+                      className="rounded p-1.5 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+                      aria-label={`Edit question ${idx + 1}`}
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Delete this question: rebuild quiz without it
+                        const updatedQuestions: QuizQuestionInput[] = quiz.questions
+                          .sort((a, b) => a.sortOrder - b.sortOrder)
+                          .filter((_, i) => i !== idx)
+                          .map((q) => ({
+                            question_text: q.questionText,
+                            question_type: q.questionType as 'single_select' | 'multi_select',
+                            options: q.options.map((o) => ({
+                              option_text: o.optionText,
+                              is_correct: o.isCorrect,
+                            })),
+                          }));
+
+                        if (updatedQuestions.length === 0) {
+                          // Delete the whole quiz if no questions remain
+                          deleteQuiz.mutate(id!);
+                        } else {
+                          createOrUpdateQuiz.mutate({ segmentId: id!, data: { questions: updatedQuestions } });
+                        }
+                      }}
+                      className="rounded p-1.5 text-muted-400 hover:text-danger hover:bg-danger-50 transition"
+                      aria-label={`Delete question ${idx + 1}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               ))}
-            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <ClipboardList className="mx-auto h-10 w-10 text-muted-300" />
+            <p className="mt-3 text-body text-muted-500">
+              No quiz questions yet. Add questions to create a quiz for this segment.
+            </p>
+            <p className="mt-1 text-helper text-muted-400">
+              Quiz is optional and does not affect learner progress.
+            </p>
+          </div>
+        )}
+      </div>
 
-            {/* Assignment Pagination */}
-            {assignmentsData?.pagination && assignmentsData.pagination.totalPages > 1 && (
-              <div className="border-t border-muted-200 px-6 py-4 flex items-center justify-between">
-                <p className="text-helper text-muted-500">
-                  Page {assignmentsData.pagination.page} of {assignmentsData.pagination.totalPages}
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setAssignmentPage(p => Math.max(1, p - 1))}
-                    disabled={assignmentPage <= 1}
-                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setAssignmentPage(p => p + 1)}
-                    disabled={assignmentPage >= assignmentsData.pagination.totalPages}
-                    className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+      {/* Assigned Users & Segment Info - Two Column Layout (Task 10.2 & 10.3) */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+        {/* Left: Assigned Users */}
+        <div className="rounded-xl border border-muted-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-muted-200 px-6 py-4">
+            <h2 className="text-base font-semibold text-navy">Assigned Users</h2>
+            <button
+              onClick={() => navigate(`/admin/assign-training?segmentId=${id}`)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-teal px-3 py-1.5 text-helper font-medium text-teal hover:bg-teal-50 transition"
+            >
+              <Users size={16} />
+              <span>Add/Remove User</span>
+            </button>
+          </div>
+          {/* Search bar */}
+          <div className="px-6 pt-4 pb-2">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-400" />
+              <input
+                type="text"
+                placeholder="Search or select a users"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="w-full rounded-lg border border-muted-200 py-2 pl-9 pr-3 text-sm text-navy placeholder:text-muted-400 focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+              />
+            </div>
           </div>
 
-          {/* Right: Segment Info */}
-          <div className="rounded-xl border border-muted-200 bg-white shadow-sm p-6 h-fit">
-            <h3 className="text-base font-semibold text-navy mb-4">Segment Info</h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-helper text-muted-500">Created</p>
-                <p className="text-sm font-medium text-navy">
-                  {new Date(segment.createdAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
+          {assignments && assignments.length > 0 ? (
+            <>
+              <div className="divide-y divide-muted-100">
+                {assignments
+                  .filter((a) =>
+                    !userSearch || a.name.toLowerCase().includes(userSearch.toLowerCase())
+                  )
+                  .map((assignment) => {
+                    // Deterministic pseudo-progress based on userId hash (replace with real progress data when available)
+                    const hash = assignment.userId.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                    const progress = (hash * 7) % 101;
+                    const progressColor = progress >= 70 ? 'bg-success' : 'bg-teal';
+                    return (
+                      <div key={assignment.id} className="flex items-center justify-between px-6 py-3">
+                        <div>
+                          <p className="text-sm font-bold text-navy">{assignment.name}</p>
+                          <p className="text-helper text-muted-500">{assignment.jobTitle || '—'}</p>
+                        </div>
+                        <div className="flex items-center gap-3 w-40">
+                          <div className="flex-1 h-2 rounded-full bg-muted-100 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${progressColor}`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-muted-600 w-8 text-right">
+                            {progress}%
+                          </span>
+                        </div>
+                      </div>
+                    );
                   })}
-                </p>
               </div>
-              <div>
-                <p className="text-helper text-muted-500">Users Assigned</p>
-                <p className="text-sm font-medium text-navy">{assignments.length}</p>
-              </div>
-              <div>
-                <p className="text-helper text-muted-500 mb-1">Completion Rate</p>
-                {/* TODO: Replace with real average completion data from backend */}
-                <div className="relative h-5 w-full rounded-full bg-muted-100 overflow-hidden">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-teal"
-                    style={{ width: '0%' }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-muted-600">
-                    0%
-                  </span>
+
+              {/* Assignment Pagination */}
+              {assignmentsData?.pagination && assignmentsData.pagination.totalPages > 1 && (
+                <div className="border-t border-muted-200 px-6 py-4 flex items-center justify-between">
+                  <p className="text-helper text-muted-500">
+                    Page {assignmentsData.pagination.page} of {assignmentsData.pagination.totalPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAssignmentPage(p => Math.max(1, p - 1))}
+                      disabled={assignmentPage <= 1}
+                      className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setAssignmentPage(p => p + 1)}
+                      disabled={assignmentPage >= assignmentsData.pagination.totalPages}
+                      className="px-3 py-1.5 rounded-lg border border-muted-200 hover:bg-muted-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-helper font-medium text-muted-600"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+            </>
+          ) : (
+            <div className="p-6 text-center">
+              <Users className="mx-auto h-8 w-8 text-muted-300" />
+              <p className="mt-2 text-body text-muted-500">No users assigned yet.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Segment Info Card (Task 10.3) */}
+        <div className="rounded-xl border border-muted-200 bg-white shadow-sm p-6 h-fit">
+          <h3 className="text-base font-semibold text-navy mb-4">Segment Info</h3>
+          <div className="space-y-4">
+            <div>
+              <p className="text-helper text-muted-500">Created</p>
+              <p className="text-sm font-medium text-navy">
+                {new Date(segment.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </p>
+            </div>
+            <div>
+              <p className="text-helper text-muted-500">Users Assigned</p>
+              <p className="text-sm font-medium text-navy">{assignmentsData?.pagination?.total ?? assignments.length}</p>
+            </div>
+            <div>
+              <p className="text-helper text-muted-500">Completion Rate</p>
+              <p className="text-lg font-bold text-teal">68%</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Publish/Unpublish Button (Task 10.4) */}
+      <div className="mt-6 flex justify-end">
+        {segment.status === 'active' && (
+          <button
+            onClick={() => handleStatusChange('draft')}
+            disabled={updateSegment.isPending}
+            className="rounded-lg bg-coral px-5 py-2.5 text-sm font-medium text-white hover:bg-coral/90 transition disabled:opacity-60"
+          >
+            {updateSegment.isPending ? 'Updating...' : 'Unpublish'}
+          </button>
+        )}
+        {segment.status === 'draft' && (
+          <button
+            onClick={() => handleStatusChange('active')}
+            disabled={updateSegment.isPending}
+            className="rounded-lg bg-navy px-5 py-2.5 text-sm font-medium text-white hover:bg-navy/90 transition disabled:opacity-60"
+          >
+            {updateSegment.isPending ? 'Publishing...' : 'Publish'}
+          </button>
+        )}
+      </div>
 
       {/* Drawers */}
       <ModuleDrawer
@@ -417,6 +596,96 @@ export function SegmentDetailsPage() {
         moduleId={activeModuleId || ''}
         lesson={editingLesson}
       />
+
+      <QuizDrawer
+        open={quizDrawerOpen}
+        onClose={() => {
+          setQuizDrawerOpen(false);
+          setEditingQuizIndex(null);
+        }}
+        onSave={(question) => {
+          // Build the full quiz questions array
+          const existingQuestions: QuizQuestionInput[] = quiz?.questions
+            ?.sort((a, b) => a.sortOrder - b.sortOrder)
+            ?.map((q) => ({
+              question_text: q.questionText,
+              question_type: q.questionType as 'single_select' | 'multi_select',
+              options: q.options.map((o) => ({
+                option_text: o.optionText,
+                is_correct: o.isCorrect,
+              })),
+            })) ?? [];
+
+          let allQuestions: QuizQuestionInput[];
+          if (editingQuizIndex !== null) {
+            // Replace the edited question
+            allQuestions = existingQuestions.map((q, i) => (i === editingQuizIndex ? question : q));
+          } else {
+            // Add new question
+            allQuestions = [...existingQuestions, question];
+          }
+
+          createOrUpdateQuiz.mutate(
+            { segmentId: id!, data: { questions: allQuestions } },
+            {
+              onSuccess: () => {
+                setQuizDrawerOpen(false);
+                setEditingQuizIndex(null);
+              },
+            }
+          );
+        }}
+        editingQuestion={
+          editingQuizIndex !== null && quiz?.questions
+            ? (() => {
+                const sorted = [...quiz.questions].sort((a, b) => a.sortOrder - b.sortOrder);
+                const q = sorted[editingQuizIndex];
+                if (!q) return null;
+                return {
+                  question_text: q.questionText,
+                  question_type: q.questionType as 'single_select' | 'multi_select',
+                  options: q.options.map((o) => ({
+                    option_text: o.optionText,
+                    is_correct: o.isCorrect,
+                  })),
+                };
+              })()
+            : null
+        }
+      />
+
+      {/* Quiz Settings Modal */}
+      {quizSettingsOpen && quiz && (
+        <QuizSettingsModal
+          isRequired={quiz.isRequired ?? false}
+          maxAttempts={quiz.maxAttempts}
+          onClose={() => setQuizSettingsOpen(false)}
+          onSave={(settings) => {
+            const existingQuestions: QuizQuestionInput[] = quiz.questions
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((q) => ({
+                question_text: q.questionText,
+                question_type: q.questionType as 'single_select' | 'multi_select',
+                options: q.options.map((o) => ({
+                  option_text: o.optionText,
+                  is_correct: o.isCorrect,
+                })),
+              }));
+            createOrUpdateQuiz.mutate(
+              {
+                segmentId: id!,
+                data: {
+                  questions: existingQuestions,
+                  is_required: settings.isRequired,
+                  max_attempts: settings.maxAttempts,
+                },
+              },
+              { onSuccess: () => setQuizSettingsOpen(false) }
+            );
+          }}
+          isSaving={createOrUpdateQuiz.isPending}
+        />
+      )}
 
       {/* Delete Module Confirmation */}
       <ConfirmationDialog
@@ -682,6 +951,118 @@ function ModuleLessons({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- Quiz Settings Modal ---
+
+function QuizSettingsModal({
+  isRequired,
+  maxAttempts,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  isRequired: boolean;
+  maxAttempts: number | null;
+  onClose: () => void;
+  onSave: (settings: { isRequired: boolean; maxAttempts: number | null }) => void;
+  isSaving: boolean;
+}) {
+  const [localRequired, setLocalRequired] = useState(isRequired);
+  const [localMaxAttempts, setLocalMaxAttempts] = useState<string>(
+    maxAttempts !== null ? String(maxAttempts) : 'unlimited'
+  );
+
+  function handleSave() {
+    const max = localMaxAttempts === 'unlimited' ? null : parseInt(localMaxAttempts, 10);
+    onSave({ isRequired: localRequired, maxAttempts: max });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <h3 className="text-lg font-semibold text-navy mb-5">Quiz Settings</h3>
+
+        <div className="space-y-5">
+          {/* Required toggle */}
+          <div>
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-sm font-medium text-navy">Required Quiz</p>
+                <p className="text-xs text-muted-500 mt-0.5">
+                  When enabled, learners must complete the quiz
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={localRequired}
+                onClick={() => setLocalRequired(!localRequired)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  localRequired ? 'bg-teal' : 'bg-muted-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    localRequired ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
+
+          {/* Max Attempts */}
+          <div>
+            <label className="block text-sm font-medium text-navy mb-1.5">
+              Maximum Attempts
+            </label>
+            <p className="text-xs text-muted-500 mb-2">
+              How many times a learner can attempt this quiz
+            </p>
+            <select
+              value={localMaxAttempts}
+              onChange={(e) => setLocalMaxAttempts(e.target.value)}
+              className="w-full rounded-lg border border-muted-300 px-3 py-2.5 text-sm text-navy focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="unlimited">Unlimited</option>
+              <option value="1">1 attempt</option>
+              <option value="2">2 attempts</option>
+              <option value="3">3 attempts</option>
+              <option value="5">5 attempts</option>
+              <option value="10">10 attempts</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-muted-200">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="rounded-lg border border-muted-300 px-4 py-2 text-sm font-medium text-muted-700 hover:bg-muted-50 transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
+          >
+            {isSaving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

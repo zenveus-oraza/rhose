@@ -87,7 +87,7 @@ describe('Feature: m3-user-learning-experience, Property 8: Sequential Access In
         totalLessonsArb.chain((total) =>
           lessonIndexArb(total).map((target) => ({ total, target }))
         ),
-        ({ total, target }) => {
+        ({ total: _total, target }) => {
           // Create a completed set containing all indices before target
           const completedIndices = new Set<number>();
           for (let i = 0; i < target; i++) {

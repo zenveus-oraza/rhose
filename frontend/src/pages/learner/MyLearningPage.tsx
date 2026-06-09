@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
   Clock,
@@ -10,8 +10,10 @@ import {
   Video,
   FileText,
   Presentation,
+  FileQuestion,
 } from 'lucide-react';
 import { useAssignedSegments, useSegmentDetail, useModuleLessons } from '@/hooks/useLearner';
+import { useLearnerQuiz, useQuizAttemptHistory } from '@/hooks/useQuiz';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import type { ModuleSummary } from '@/types/learner';
@@ -205,6 +207,50 @@ function SegmentSection({ segmentId, title, description, progressPercentage, com
           ))}
         </div>
       )}
+
+      {/* Quiz Card */}
+      <SegmentQuizCard segmentId={segmentId} />
+    </div>
+  );
+}
+
+// --- Quiz Card for a Segment ---
+
+function SegmentQuizCard({ segmentId }: { segmentId: string }) {
+  const navigate = useNavigate();
+  const { data: quiz, isLoading } = useLearnerQuiz(segmentId);
+  const { data: attempts = [] } = useQuizAttemptHistory(segmentId);
+
+  if (isLoading || !quiz) return null;
+
+  const bestAttempt = attempts.length > 0
+    ? attempts.reduce((best, a) => (a.percentage > best.percentage ? a : best), attempts[0])
+    : null;
+
+  return (
+    <div className="mt-4 border border-muted-200 rounded-lg bg-muted-50 px-5 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <FileQuestion className="h-5 w-5 text-teal shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-navy">{quiz.title || 'Segment Quiz'}</p>
+            <p className="text-xs text-muted-500">
+              {quiz.questions.length} question{quiz.questions.length !== 1 ? 's' : ''} • Optional
+              {bestAttempt && (
+                <span className="ml-2 text-teal font-medium">
+                  Best: {bestAttempt.percentage}%
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => navigate(`/learner/segments/${segmentId}`)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
+        >
+          {attempts.length > 0 ? 'Retake' : 'Take Quiz'}
+        </button>
+      </div>
     </div>
   );
 }

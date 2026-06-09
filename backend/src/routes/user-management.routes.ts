@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { userManagementService } from '../services/user-management.service.js';
+import { activityService } from '../services/activity.service.js';
 import {
   adminCreateUserSchema,
   adminUpdateUserSchema,
@@ -21,6 +22,17 @@ router.post(
     try {
       const data = adminCreateUserSchema.parse(req.body);
       const { user, temporaryPassword } = await userManagementService.create(data);
+
+      // Fire-and-forget: track user_created activity event
+      activityService.trackEvent({
+        userId: user.id,
+        action: 'user_created',
+        description: `New user "${user.name}" created`,
+        detail: user.role,
+      }).catch(() => {
+        // Activity tracking failures must not affect the main flow
+      });
+
       sendSuccess(res, { ...user, temporaryPassword }, 201);
     } catch (error) {
       next(error);

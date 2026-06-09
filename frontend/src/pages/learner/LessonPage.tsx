@@ -10,6 +10,7 @@ import {
   Presentation,
   Video,
   FileText,
+  User,
 } from 'lucide-react';
 import ReactPlayer from 'react-player/lazy';
 import {
@@ -259,7 +260,6 @@ function SidebarModule({
   module,
   index,
   segmentId,
-  currentModuleId,
   currentLessonId,
   isExpanded,
   onToggle,
@@ -267,27 +267,22 @@ function SidebarModule({
   module: ModuleSummary;
   index: number;
   segmentId: string;
-  currentModuleId: string;
   currentLessonId: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
   const { data } = useModuleLessons(segmentId, module.id);
   const lessons = data?.lessons ?? [];
-  const isCurrentModule = module.id === currentModuleId;
   const isLocked = !module.accessible;
 
   return (
-    <div className={`rounded-lg border ${
-      isLocked ? 'border-muted-200 bg-muted-50 opacity-60' :
-      isCurrentModule ? 'border-teal-200 bg-teal-50/30' : 'border-muted-200 bg-white'
-    }`}>
+    <div className={isLocked ? 'opacity-50' : ''}>
       <button
         type="button"
         onClick={() => !isLocked && onToggle()}
         disabled={isLocked}
-        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors rounded-lg ${
-          isLocked ? 'cursor-not-allowed' : 'hover:bg-muted-50/50'
+        className={`w-full flex items-center gap-2 py-2 text-left transition-colors ${
+          isLocked ? 'cursor-not-allowed' : 'hover:bg-muted-50'
         }`}
       >
         {isLocked ? (
@@ -297,14 +292,15 @@ function SidebarModule({
         ) : (
           <ChevronRight className="h-3.5 w-3.5 text-muted-500 shrink-0" />
         )}
-        <span className={`text-xs font-medium truncate flex-1 ${isLocked ? 'text-muted-400' : 'text-navy'}`}>
-          M{index + 1}: {module.title}
+        <span className={`text-xs truncate flex-1 ${isLocked ? 'text-muted-400' : 'text-navy'}`}>
+          <span className="font-bold">MODULES {index + 1}:</span>{' '}
+          {module.title}
         </span>
         <ModuleStatusIcon module={module} />
       </button>
 
       {isExpanded && !isLocked && lessons.length > 0 && (
-        <div className="px-2 pb-2 space-y-0.5">
+        <div className="pl-6 pb-2 space-y-0.5">
           {lessons.map((lesson) => (
             <Link
               key={lesson.id}
@@ -359,6 +355,7 @@ export function LessonPage() {
   }>();
   const navigate = useNavigate();
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(moduleId);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const {
     data: lessonData,
@@ -415,53 +412,91 @@ export function LessonPage() {
   const isLessonCompleted = moduleLessons.find((l) => l.id === lessonId)?.completed ?? false;
   const currentModuleIndex = sortedModules.findIndex((m) => m.id === moduleId);
 
+  // Truncate description
+  const maxDescLength = 80;
+  const description = segment?.description ?? '';
+  const isTruncatable = description.length > maxDescLength;
+  const displayDescription = descriptionExpanded || !isTruncatable
+    ? description
+    : description.slice(0, maxDescLength) + '...';
+
   return (
-    <div className="flex h-full min-h-[calc(100vh-80px)]">
-      {/* Left Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col w-72 border-r border-muted-200 bg-white overflow-y-auto p-4">
+    <div className="flex h-full min-h-screen">
+      {/* Left Panel */}
+      <aside className="hidden lg:flex lg:flex-col w-[270px] min-w-[270px] rounded-2xl border border-muted-200 bg-[#F8FAFC] overflow-y-auto p-5">
+        {/* Back to Dashboard */}
         <Link
           to="/learner"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-500 hover:text-navy transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-500 hover:text-navy transition-colors mb-5"
         >
-          <ArrowLeft className="h-3 w-3" />
+          <ArrowLeft className="h-3.5 w-3.5" />
           Back to Dashboard
         </Link>
 
+        {/* Segment Title */}
         {segment && (
           <div className="mb-4">
-            <h2 className="text-sm font-bold text-teal leading-snug">{segment.title}</h2>
-            {segment.description && (
-              <p className="text-xs text-muted-500 mt-1 line-clamp-2">{segment.description}</p>
+            <h2 className="text-base font-bold text-teal leading-snug">{segment.title}</h2>
+            {description && (
+              <div className="mt-2">
+                <p className="text-xs text-muted-500 leading-relaxed">
+                  {displayDescription}
+                </p>
+                {isTruncatable && (
+                  <button
+                    type="button"
+                    onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                    className="text-xs text-teal font-medium hover:underline mt-0.5"
+                  >
+                    {descriptionExpanded ? 'See less' : 'See more...'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
 
-        {/* Progress */}
+        {/* Instructor Block */}
         <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-navy">Progress</span>
-            <span className="text-xs font-semibold text-teal">{progressPercent}%</span>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-muted-200 flex items-center justify-center shrink-0">
+              <User className="h-5 w-5 text-muted-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-500">Instructor</p>
+              <p className="text-sm font-medium text-navy">Victor</p>
+            </div>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted-200 overflow-hidden">
+        </div>
+
+        {/* Horizontal Divider */}
+        <hr className="border-muted-200 mb-4" />
+
+        {/* Progress Section */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-navy">Progress</span>
+            <span className="text-xs font-bold text-teal">{progressPercent}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted-200 overflow-hidden">
             <div
               className="h-full rounded-full bg-teal transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <p className="text-xs text-muted-500 mt-1">
+          <p className="text-xs text-muted-500 mt-1.5">
             {completedSegmentLessons}/{totalSegmentLessons} Steps
           </p>
         </div>
 
-        {/* Module list with lessons */}
-        <div className="flex flex-col gap-2">
+        {/* Module Accordion List */}
+        <div className="flex flex-col">
           {sortedModules.map((mod, index) => (
             <SidebarModule
               key={mod.id}
               module={mod}
               index={index}
               segmentId={segmentId}
-              currentModuleId={moduleId}
               currentLessonId={lessonId}
               isExpanded={expandedModuleId === mod.id}
               onToggle={() => setExpandedModuleId((prev) => (prev === mod.id ? null : mod.id))}

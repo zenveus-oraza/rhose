@@ -74,7 +74,7 @@ export const segmentService = {
 
     const total = countResult?.count ?? 0;
 
-    // Get paginated results with module count per segment
+    // Get paginated results with module count and assignment data per segment
     const result = await db
       .select({
         id: segments.id,
@@ -85,6 +85,13 @@ export const segmentService = {
         createdAt: segments.createdAt,
         updatedAt: segments.updatedAt,
         moduleCount: sql<number>`(SELECT count(*)::int FROM "modules" WHERE "modules"."segment_id" = "segments"."id")`,
+        assignedUserCount: sql<number>`(SELECT count(*)::int FROM "segment_assignments" WHERE "segment_assignments"."segment_id" = "segments"."id")`,
+        earliestExpiryDate: sql<string | null>`(
+          SELECT MIN("segment_assignments"."assigned_at" + ("segment_assignments"."access_duration_days" * INTERVAL '1 day'))::text
+          FROM "segment_assignments"
+          WHERE "segment_assignments"."segment_id" = "segments"."id"
+            AND "segment_assignments"."access_duration_days" IS NOT NULL
+        )`,
       })
       .from(segments)
       .where(whereCondition)

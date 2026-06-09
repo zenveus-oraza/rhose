@@ -142,14 +142,18 @@ function arbSegment(index: number): fc.Arbitrary<Segment> {
 /**
  * Generates a set of users.
  */
-function arbUsers(count: number): fc.Arbitrary<User[]> {
+// @ts-ignore -- helper kept for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _arbUsers(count: number): fc.Arbitrary<User[]> {
   return fc.tuple(...Array.from({ length: count }, (_, i) => arbUser(i))).map((users) => users);
 }
 
 /**
  * Generates a set of segments.
  */
-function arbSegments(count: number): fc.Arbitrary<Segment[]> {
+// @ts-ignore -- helper kept for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _arbSegments(count: number): fc.Arbitrary<Segment[]> {
   return fc.tuple(...Array.from({ length: count }, (_, i) => arbSegment(i))).map((segs) => segs);
 }
 

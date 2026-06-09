@@ -11,6 +11,8 @@ export interface Segment {
   duration: number | null;
   status: SegmentStatus;
   moduleCount?: number;
+  assignedUserCount?: number;
+  earliestExpiryDate?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,4 +214,5 @@ export interface DashboardStats {
   totalModules: number;
   totalLessons: number;
   totalUsers: number;
+  endingSoonCount?: number;
 }

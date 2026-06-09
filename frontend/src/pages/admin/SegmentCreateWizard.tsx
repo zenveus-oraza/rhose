@@ -24,6 +24,7 @@ import {
   useReorderLessons,
   useSegment,
 } from '@/hooks/useAdminApi';
+import { useCreateOrUpdateQuiz } from '@/hooks/useQuiz';
 import { useToast } from '@/components/ui/Toast';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
@@ -32,7 +33,9 @@ import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ModuleDrawer } from './ModuleDrawer';
 import { LessonDrawer } from './LessonDrawer';
+import { QuizDrawer } from './QuizDrawer';
 import type { ModuleWithLessonCount, Lesson } from '@/types/admin';
+import type { QuizQuestionInput } from '@/types/quiz';
 
 // --- Types ---
 
@@ -50,6 +53,7 @@ const STEP_LABELS = ['Segment Info', 'Modules', 'Quiz', 'Overview'] as const;
 export function SegmentCreateWizard() {
   const navigate = useNavigate();
   const createSegment = useCreateSegment();
+  const createOrUpdateQuiz = useCreateOrUpdateQuiz();
   const { toast } = useToast();
 
   // Wizard state
@@ -61,6 +65,9 @@ export function SegmentCreateWizard() {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState('');
   const [fieldErrors, setFieldErrors] = useState<SegmentFormErrors>({});
+
+  // Quiz state (stored locally until final publish/save)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionInput[]>([]);
 
   function validate(): boolean {
     const errors: SegmentFormErrors = {};
@@ -157,12 +164,47 @@ export function SegmentCreateWizard() {
         {currentStep === 1 && createdSegmentId && (
           <Step2Modules segmentId={createdSegmentId} onContinue={() => setCurrentStep(2)} onBack={() => setCurrentStep(0)} />
         )}
-        {currentStep === 2 && <Step3Quiz onContinue={() => setCurrentStep(3)} onBack={() => setCurrentStep(1)} />}
+        {currentStep === 2 && (
+          <Step3Quiz
+            quizQuestions={quizQuestions}
+            setQuizQuestions={setQuizQuestions}
+            onContinue={() => setCurrentStep(3)}
+            onBack={() => setCurrentStep(1)}
+          />
+        )}
         {currentStep === 3 && createdSegmentId && (
           <Step4Overview
             segmentId={createdSegmentId}
-            onBack={() => setCurrentStep(1)}
-            onFinish={() => navigate(`/admin/content/segments/${createdSegmentId}`)}
+            quizQuestions={quizQuestions}
+            onBack={() => setCurrentStep(2)}
+            onEditSegmentInfo={() => setCurrentStep(0)}
+            onEditModules={() => setCurrentStep(1)}
+            onEditQuiz={() => setCurrentStep(2)}
+            onFinish={(status: 'active' | 'draft') => {
+              if (quizQuestions.length > 0) {
+                createOrUpdateQuiz.mutate(
+                  { segmentId: createdSegmentId, data: { questions: quizQuestions } },
+                  {
+                    onSuccess: () => {
+                      if (status === 'active') {
+                        toast('success', 'Segment published successfully');
+                      } else {
+                        toast('success', 'Segment saved as draft');
+                      }
+                      navigate(`/admin/content/segments/${createdSegmentId}`);
+                    },
+                    onError: () => {
+                      toast('error', 'Failed to save quiz');
+                    },
+                  }
+                );
+              } else {
+                if (status === 'draft') {
+                  toast('success', 'Segment saved as draft');
+                }
+                navigate(`/admin/content/segments/${createdSegmentId}`);
+              }
+            }}
           />
         )}
       </div>
@@ -817,20 +859,119 @@ function WizardModuleLessons({
   );
 }
 
-// --- Step 3: Quiz (Placeholder) ---
+// --- Step 3: Quiz ---
 
-function Step3Quiz({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
+function Step3Quiz({
+  quizQuestions,
+  setQuizQuestions,
+  onContinue,
+  onBack,
+}: {
+  quizQuestions: QuizQuestionInput[];
+  setQuizQuestions: React.Dispatch<React.SetStateAction<QuizQuestionInput[]>>;
+  onContinue: () => void;
+  onBack: () => void;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  function handleSaveQuestion(question: QuizQuestionInput) {
+    if (editingIndex !== null) {
+      setQuizQuestions((prev) =>
+        prev.map((q, i) => (i === editingIndex ? question : q))
+      );
+      setEditingIndex(null);
+    } else {
+      setQuizQuestions((prev) => [...prev, question]);
+    }
+    setDrawerOpen(false);
+  }
+
+  function handleEditQuestion(index: number) {
+    setEditingIndex(index);
+    setDrawerOpen(true);
+  }
+
+  function handleDeleteQuestion(index: number) {
+    setQuizQuestions((prev) => prev.filter((_, i) => i !== index));
+  }
+
   return (
     <div>
-      <div className="flex flex-col items-center justify-center py-16">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted-100">
-          <ClipboardList className="h-8 w-8 text-muted-400" />
+      <div className="rounded-xl border border-muted-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-muted-200 px-6 py-4">
+          <h2 className="text-heading-card text-navy">Quiz Questions</h2>
+          <button
+            onClick={() => {
+              setEditingIndex(null);
+              setDrawerOpen(true);
+            }}
+            className="inline-flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
+          >
+            <Plus size={16} />
+            <span>Add Question</span>
+          </button>
         </div>
-        <h3 className="mt-4 text-heading-card text-navy">Quiz Management</h3>
-        <p className="mt-2 text-body text-muted-500 text-center max-w-sm">
-          Quiz creation and management will be available in a future update.
-        </p>
+
+        {quizQuestions.length > 0 ? (
+          <div className="divide-y divide-muted-100">
+            {quizQuestions.map((question, index) => (
+              <div
+                key={index}
+                className="flex items-start justify-between px-6 py-4 hover:bg-muted-50 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-body font-medium text-navy">
+                    Q {index + 1}: {question.question_text}
+                  </p>
+                  <p className="text-helper text-muted-500 mt-0.5">
+                    {question.question_type === 'single_select' ? 'Single Select' : 'Multi Select'}
+                    {' • '}
+                    {question.options.length} options
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 ml-3 shrink-0">
+                  <button
+                    onClick={() => handleEditQuestion(index)}
+                    className="rounded p-1.5 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+                    aria-label={`Edit question ${index + 1}`}
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteQuestion(index)}
+                    className="rounded p-1.5 text-muted-400 hover:text-danger hover:bg-danger-50 transition"
+                    aria-label={`Delete question ${index + 1}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <ClipboardList className="mx-auto h-10 w-10 text-muted-300" />
+            <p className="mt-3 text-body text-muted-500">
+              No quiz questions yet. Add questions to create a quiz for this segment.
+            </p>
+            <p className="mt-1 text-helper text-muted-400">
+              Quiz is optional — you can skip this step.
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Quiz Drawer */}
+      <QuizDrawer
+        open={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false);
+          setEditingIndex(null);
+        }}
+        onSave={handleSaveQuestion}
+        editingQuestion={editingIndex !== null ? quizQuestions[editingIndex] : null}
+      />
 
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between pt-6">
@@ -857,25 +998,44 @@ function Step3Quiz({ onContinue, onBack }: { onContinue: () => void; onBack: () 
 
 function Step4Overview({
   segmentId,
+  quizQuestions,
   onBack,
+  onEditSegmentInfo,
+  onEditModules,
+  onEditQuiz,
   onFinish,
 }: {
   segmentId: string;
+  quizQuestions: QuizQuestionInput[];
   onBack: () => void;
-  onFinish: () => void;
+  onEditSegmentInfo: () => void;
+  onEditModules: () => void;
+  onEditQuiz: () => void;
+  onPublish?: () => void;
+  onFinish: (status: 'active' | 'draft') => void;
 }) {
   const { data: segment, isLoading: segmentLoading } = useSegment(segmentId);
   const { data: modulesData, isLoading: modulesLoading } = useModules(segmentId, { page: 1, limit: 50 });
   const updateSegment = useUpdateSegment();
+  const { toast } = useToast();
 
   const modules = modulesData?.data ?? [];
   const totalLessons = modules.reduce((sum, m) => sum + m.lessonCount, 0);
 
-  function handleFinish() {
+  function handlePublish() {
     updateSegment.mutate(
       { id: segmentId, data: { status: 'active' } },
-      { onSuccess: () => onFinish() }
+      {
+        onSuccess: () => {
+          toast('success', 'Segment published successfully');
+          onFinish('active');
+        },
+      }
     );
+  }
+
+  function handleSaveAsDraft() {
+    onFinish('draft');
   }
 
   if (segmentLoading || modulesLoading) {
@@ -892,9 +1052,18 @@ function Step4Overview({
 
   return (
     <div className="max-w-2xl space-y-6">
-      {/* Segment Summary */}
+      {/* Segment Info Section */}
       <div className="rounded-xl border border-muted-200 bg-white p-6 shadow-sm">
-        <h3 className="text-heading-card text-navy mb-4">Segment Summary</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-heading-card text-navy">Segment Info</h3>
+          <button
+            onClick={onEditSegmentInfo}
+            className="rounded p-1.5 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+            aria-label="Edit segment info"
+          >
+            <Edit size={16} />
+          </button>
+        </div>
         <div className="space-y-3">
           <div className="flex items-start justify-between">
             <span className="text-helper text-muted-500">Title</span>
@@ -914,21 +1083,22 @@ function Step4Overview({
             <span className="text-helper text-muted-500">Status</span>
             <StatusBadge variant={segment.status} />
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-helper text-muted-500">Modules</span>
-            <span className="text-body font-medium text-navy">{modules.length}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-helper text-muted-500">Total Lessons</span>
-            <span className="text-body font-medium text-navy">{totalLessons}</span>
-          </div>
         </div>
       </div>
 
-      {/* Modules List */}
-      {modules.length > 0 && (
-        <div className="rounded-xl border border-muted-200 bg-white p-6 shadow-sm">
-          <h3 className="text-heading-card text-navy mb-4">Modules</h3>
+      {/* Modules Section */}
+      <div className="rounded-xl border border-muted-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-heading-card text-navy">Modules</h3>
+          <button
+            onClick={onEditModules}
+            className="rounded p-1.5 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+            aria-label="Edit modules"
+          >
+            <Edit size={16} />
+          </button>
+        </div>
+        {modules.length > 0 ? (
           <div className="space-y-2">
             {modules.map((mod) => (
               <div
@@ -945,26 +1115,72 @@ function Step4Overview({
               </div>
             ))}
           </div>
+        ) : (
+          <p className="text-body text-muted-500">No modules added.</p>
+        )}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-muted-100">
+          <span className="text-helper text-muted-500">Total Lessons</span>
+          <span className="text-body font-medium text-navy">{totalLessons}</span>
         </div>
-      )}
+      </div>
+
+      {/* Quiz Section */}
+      <div className="rounded-xl border border-muted-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-heading-card text-navy">Quiz</h3>
+          <button
+            onClick={onEditQuiz}
+            className="rounded p-1.5 text-muted-400 hover:text-navy hover:bg-muted-100 transition"
+            aria-label="Edit quiz"
+          >
+            <Edit size={16} />
+          </button>
+        </div>
+        {quizQuestions.length > 0 ? (
+          <div className="space-y-2">
+            {quizQuestions.map((question, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-muted-200 px-4 py-3"
+              >
+                <p className="text-body text-navy">
+                  <span className="font-medium">Q {index + 1}:</span>{' '}
+                  {question.question_text}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-body text-muted-500">No quiz questions added.</p>
+        )}
+      </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-3 pt-4">
+      <div className="flex items-center justify-between pt-4">
         <button
           type="button"
           onClick={onBack}
           className="rounded-lg border border-muted-300 px-4 py-2 text-helper font-medium text-muted-700 hover:bg-muted-50 transition"
         >
-          Back to Modules
+          Back
         </button>
-        <button
-          type="button"
-          onClick={handleFinish}
-          disabled={updateSegment.isPending}
-          className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
-        >
-          {updateSegment.isPending ? 'Activating...' : 'Finish'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSaveAsDraft}
+            className="rounded-lg border border-muted-300 px-4 py-2 text-helper font-medium text-muted-700 hover:bg-muted-50 transition"
+          >
+            Save as Draft
+          </button>
+          <button
+            type="button"
+            onClick={handlePublish}
+            disabled={updateSegment.isPending}
+            className="rounded-lg bg-secondary px-4 py-2 text-helper font-medium text-white hover:bg-secondary/90 transition disabled:opacity-60"
+          >
+            {updateSegment.isPending ? 'Publishing...' : 'Publish'}
+          </button>
+        </div>
       </div>
     </div>
   );
