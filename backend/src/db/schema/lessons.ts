@@ -16,6 +16,7 @@ export const lessons = pgTable('lessons', {
   id: uuid('id').primaryKey().defaultRandom(),
   moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
   contentType: lessonContentTypeEnum('content_type').notNull(),
   contentBody: text('content_body'),
   videoUrl: varchar('video_url', { length: 2048 }),

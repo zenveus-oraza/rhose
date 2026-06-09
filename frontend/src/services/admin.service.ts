@@ -173,6 +173,10 @@ export async function listUsers(params?: UserListParams): Promise<PaginatedResul
   return apiClient<PaginatedResult<UserProfile>>(endpoint);
 }
 
+export async function getUserBySlug(slug: string): Promise<UserProfile> {
+  return apiClient<UserProfile>(`/admin/users/slug/${slug}`);
+}
+
 export async function updateUser(id: string, data: UpdateUserInput): Promise<UserProfile> {
   return apiClient<UserProfile>(`/admin/users/${id}`, {
     method: 'PUT',

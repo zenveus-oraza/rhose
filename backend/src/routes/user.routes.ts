@@ -8,6 +8,7 @@ import { hashPassword } from '../utils/password.js';
 import { sendSuccess } from '../utils/response.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { AppError } from '../utils/AppError.js';
+import { generateUniqueUserSlug } from '../services/user-management.service.js';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.get(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
           jobTitle: users.jobTitle,
@@ -89,6 +91,7 @@ router.patch(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
           jobTitle: users.jobTitle,
@@ -132,6 +135,7 @@ router.post(
 
       // 3. Generate a temporary password
       const temporaryPassword = crypto.randomBytes(8).toString('hex');
+      const slug = await generateUniqueUserSlug(name);
 
       // 4. Hash the temporary password with bcrypt
       const passwordHash = await hashPassword(temporaryPassword);
@@ -141,6 +145,7 @@ router.post(
         .insert(users)
         .values({
           name,
+          slug,
           email,
           passwordHash,
           role,
@@ -150,6 +155,7 @@ router.post(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
         });
@@ -159,6 +165,7 @@ router.post(
         id: createdUser.id,
         email: createdUser.email,
         name: createdUser.name,
+        slug: createdUser.slug,
         role: createdUser.role,
         status: createdUser.status,
         temporaryPassword,

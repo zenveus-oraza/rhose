@@ -40,7 +40,7 @@ export async function requireSegmentAccess(req: Request, res: Response, next: Ne
     return;
   }
 
-  const { segmentId } = req.params;
+  const segmentId = String(req.params.segmentId ?? '');
 
   const result = await segmentAccessService.verifyAccess(req.user.userId, segmentId);
 

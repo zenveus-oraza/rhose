@@ -55,6 +55,7 @@ export const adminKeys = {
 
   users: () => [...adminKeys.all, 'users'] as const,
   userList: (params?: UserListParams) => [...adminKeys.users(), 'list', params] as const,
+  userBySlug: (slug: string) => [...adminKeys.users(), 'slug', slug] as const,
 
   assignments: () => [...adminKeys.all, 'assignments'] as const,
   segmentAssignments: (segmentId: string, params?: { page?: number; limit?: number }) => [...adminKeys.assignments(), 'segment', segmentId, params] as const,
@@ -315,6 +316,18 @@ export function useUsers(
   });
 }
 
+export function useUserBySlug(
+  slug: string,
+  options?: Omit<UseQueryOptions<UserProfile, ApiError>, 'queryKey' | 'queryFn'>
+) {
+  return useQuery<UserProfile, ApiError>({
+    queryKey: adminKeys.userBySlug(slug),
+    queryFn: () => adminService.getUserBySlug(slug),
+    enabled: !!slug,
+    ...options,
+  });
+}
+
 export function useCreateUser(
   options?: UseMutationOptions<CreateUserResponse, ApiError, CreateUserInput>
 ) {
@@ -335,8 +348,9 @@ export function useUpdateUser(
   const queryClient = useQueryClient();
   return useMutation<UserProfile, ApiError, { id: string; data: UpdateUserInput }>({
     mutationFn: ({ id, data }) => adminService.updateUser(id, data),
-    onSuccess: () => {
+    onSuccess: (updatedUser) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.userBySlug(updatedUser.slug) });
     },
     ...options,
   });

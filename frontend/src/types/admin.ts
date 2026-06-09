@@ -6,6 +6,7 @@ export type SegmentStatus = 'draft' | 'active' | 'archived';
 
 export interface Segment {
   id: string;
+  slug: string;
   title: string;
   description: string | null;
   duration: number | null;
@@ -36,6 +37,7 @@ export interface UpdateSegmentInput {
 
 export interface Module {
   id: string;
+  slug: string;
   title: string;
   description: string | null;
   segmentId: string;
@@ -68,6 +70,7 @@ export type LessonContentType = 'text' | 'video' | 'slides';
 
 export interface Lesson {
   id: string;
+  slug: string;
   title: string;
   contentType: LessonContentType;
   contentBody: string | null;
@@ -111,6 +114,7 @@ export type UserStatus = 'active' | 'deactivated';
 
 export interface UserProfile {
   id: string;
+  slug: string;
   name: string;
   email: string;
   role: string;

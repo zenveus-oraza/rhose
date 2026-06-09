@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound, Mail, UserX, BookOpen } from 'lucide-react';
 import {
-  useUsers,
   useDeactivateUser,
   useResetUserPassword,
   useUpdateUser,
   useUserAssignments,
+  useUserBySlug,
 } from '@/hooks/useAdminApi';
 import {
   StatusBadge,
@@ -17,16 +17,16 @@ import {
 } from '@/components/shared';
 import { ProfileImageUpload } from '@/components/ui/ProfileImageUpload';
 import { useToast } from '@/components/ui/Toast';
-import type { UserProfile } from '@/types/admin';
+import { uploadImage } from '@/services/upload.service';
+import type { UpdateUserInput, UserAssignment } from '@/types/admin';
 
 export function UserProfilePage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { userSlug } = useParams<{ userSlug: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch user from the list (since there's no single-user endpoint in the hooks)
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
-  const { data: assignmentsData, isLoading: assignmentsLoading } = useUserAssignments(userId || '', { limit: 100 });
+  const { data: user, isLoading: userLoading, error: userError } = useUserBySlug(userSlug || '');
+  const { data: assignmentsData, isLoading: assignmentsLoading } = useUserAssignments(user?.id || '', { limit: 100 });
   const deactivateMutation = useDeactivateUser();
   const resetPasswordMutation = useResetUserPassword();
   const updateUserMutation = useUpdateUser();
@@ -45,8 +45,6 @@ export function UserProfilePage() {
   const [editRole, setEditRole] = useState<'admin' | 'learner'>('learner');
   const [editProfileImage, setEditProfileImage] = useState<string | null>(null);
 
-  const user: UserProfile | undefined = usersData?.data.find((u) => u.id === userId);
-
   // Initialize edit form when user loads
   useEffect(() => {
     if (user) {
@@ -60,8 +58,8 @@ export function UserProfilePage() {
   }, [user]);
 
   const handleResetPassword = () => {
-    if (!userId) return;
-    resetPasswordMutation.mutate(userId, {
+    if (!user?.id) return;
+    resetPasswordMutation.mutate(user.id, {
       onSuccess: (response) => {
         setTempPassword(response.temporaryPassword);
         setShowResetSuccess(true);
@@ -70,8 +68,8 @@ export function UserProfilePage() {
   };
 
   const handleDeactivate = () => {
-    if (!userId) return;
-    deactivateMutation.mutate(userId, {
+    if (!user?.id) return;
+    deactivateMutation.mutate(user.id, {
       onSuccess: () => {
         setShowDeactivateConfirm(false);
       },
@@ -79,18 +77,21 @@ export function UserProfilePage() {
   };
 
   const handleImageUpload = async (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      setEditProfileImage(base64);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const uploaded = await uploadImage(file);
+      setEditProfileImage(uploaded.url);
+      toast('success', 'Profile photo uploaded');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload image';
+      toast('error', message);
+      throw error;
+    }
   };
 
   const handleSaveEdits = () => {
-    if (!userId) return;
+    if (!user?.id) return;
 
-    const updateData: Record<string, any> = {};
+    const updateData: UpdateUserInput = {};
     if (editName !== user?.name) updateData.name = editName;
     if (editRole !== user?.role) updateData.role = editRole;
     if (editPhone !== (user?.phone || '')) updateData.phone = editPhone || null;
@@ -99,7 +100,7 @@ export function UserProfilePage() {
 
     updateUserMutation.mutate(
       {
-        id: userId,
+        id: user.id,
         data: updateData,
       },
       {
@@ -126,7 +127,7 @@ export function UserProfilePage() {
     setIsEditing(false);
   };
 
-  if (usersLoading) {
+  if (userLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <LoadingIndicator label="Loading user profile..." />
@@ -137,7 +138,7 @@ export function UserProfilePage() {
   if (!user) {
     return (
       <div className="py-4 lg:px-8">
-        <ErrorMessage message="User not found." />
+        <ErrorMessage message={userError?.message || 'User not found.'} />
       </div>
     );
   }
@@ -395,7 +396,7 @@ export function UserProfilePage() {
                   Segment Assignments
                 </h3>
                 <button
-                  onClick={() => navigate(`/admin/assign-training?userId=${userId}`)}
+                  onClick={() => navigate(`/admin/assign-training?userId=${user.id}`)}
                   className="rounded-lg border border-muted-200 px-4 py-2 text-helper font-medium text-navy hover:bg-muted-50 transition-colors"
                 >
                   Assign Training
@@ -408,7 +409,7 @@ export function UserProfilePage() {
                 </div>
               ) : assignmentsData?.data && assignmentsData.data.length > 0 ? (
                 <div className="space-y-2">
-                  {assignmentsData.data.map((assignment: any) => (
+                  {assignmentsData.data.map((assignment: UserAssignment) => (
                     <div
                       key={assignment.id}
                       className="flex items-center justify-between rounded-lg border border-muted-200 p-3 hover:bg-muted-50 transition-colors"

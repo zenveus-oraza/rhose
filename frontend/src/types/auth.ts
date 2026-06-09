@@ -2,6 +2,7 @@ export type UserRole = 'admin' | 'learner';
 
 export interface User {
   id: string;
+  slug?: string;
   email: string;
   name: string;
   role: UserRole;

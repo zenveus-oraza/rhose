@@ -1,6 +1,7 @@
-import { eq, and, asc, inArray, lt } from 'drizzle-orm';
+import { eq, and, asc, inArray, lt, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segments, modules, lessons, lessonCompletions } from '../db/schema/index.js';
+import { isUuid } from './slug.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,20 +55,67 @@ export type AccessResult =
  * and progress tracking for the user learning experience.
  */
 export const navigationService = {
+  async resolveSegmentIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(segments.id, identifier), eq(segments.slug, identifier))
+      : eq(segments.slug, identifier);
+
+    const [segment] = await db
+      .select({ id: segments.id, slug: segments.slug })
+      .from(segments)
+      .where(condition)
+      .limit(1);
+
+    return segment ?? null;
+  },
+
+  async resolveModuleIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(modules.id, identifier), eq(modules.slug, identifier))
+      : eq(modules.slug, identifier);
+
+    const [module] = await db
+      .select({ id: modules.id, slug: modules.slug, segmentId: modules.segmentId })
+      .from(modules)
+      .where(condition)
+      .limit(1);
+
+    return module ?? null;
+  },
+
+  async resolveLessonIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(lessons.id, identifier), eq(lessons.slug, identifier))
+      : eq(lessons.slug, identifier);
+
+    const [lesson] = await db
+      .select({ id: lessons.id, slug: lessons.slug, moduleId: lessons.moduleId })
+      .from(lessons)
+      .where(condition)
+      .limit(1);
+
+    return lesson ?? null;
+  },
+
   /**
    * Get segment details with modules and completion counts.
    */
   async getSegmentDetail(segmentId: string, userId: string): Promise<SegmentDetail | null> {
+    const resolvedSegment = await this.resolveSegmentIdentifier(segmentId);
+    if (!resolvedSegment) {
+      return null;
+    }
+
     // Get the segment
     const [segment] = await db
       .select({
-        id: segments.id,
+        id: segments.slug,
         title: segments.title,
         description: segments.description,
         status: segments.status,
       })
       .from(segments)
-      .where(eq(segments.id, segmentId))
+      .where(eq(segments.id, resolvedSegment.id))
       .limit(1);
 
     if (!segment) {
@@ -78,12 +126,13 @@ export const navigationService = {
     const segmentModules = await db
       .select({
         id: modules.id,
+        slug: modules.slug,
         title: modules.title,
         description: modules.description,
         sortOrder: modules.sortOrder,
       })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId))
+      .where(eq(modules.segmentId, resolvedSegment.id))
       .orderBy(asc(modules.sortOrder));
 
     // For each module, get lesson count and completed count
@@ -111,7 +160,7 @@ export const navigationService = {
         }
 
         return {
-          id: mod.id,
+          id: mod.slug,
           title: mod.title,
           description: mod.description,
           sortOrder: mod.sortOrder,
@@ -157,10 +206,16 @@ export const navigationService = {
    * Get lessons for a module with completion status and accessibility.
    */
   async getModuleLessons(moduleId: string, userId: string): Promise<LessonWithStatus[]> {
+    const resolvedModule = await this.resolveModuleIdentifier(moduleId);
+    if (!resolvedModule) {
+      return [];
+    }
+
     // Get all lessons in this module ordered by sort_order
     const moduleLessons = await db
       .select({
-        id: lessons.id,
+        id: lessons.slug,
+        lessonId: lessons.id,
         title: lessons.title,
         contentType: lessons.contentType,
         sortOrder: lessons.sortOrder,
@@ -168,7 +223,7 @@ export const navigationService = {
         estimatedTimeUnit: lessons.estimatedTimeUnit,
       })
       .from(lessons)
-      .where(eq(lessons.moduleId, moduleId))
+      .where(eq(lessons.moduleId, resolvedModule.id))
       .orderBy(asc(lessons.sortOrder));
 
     if (moduleLessons.length === 0) {
@@ -176,7 +231,7 @@ export const navigationService = {
     }
 
     // Get all completions for this user in this module's lessons
-    const lessonIds = moduleLessons.map((l) => l.id);
+    const lessonIds = moduleLessons.map((l) => l.lessonId);
     const completions = await db
       .select({ lessonId: lessonCompletions.lessonId })
       .from(lessonCompletions)
@@ -191,7 +246,7 @@ export const navigationService = {
 
     // Build result with accessibility: all lessons are accessible (no locking)
     const result: LessonWithStatus[] = moduleLessons.map((lesson) => {
-      const completed = completedSet.has(lesson.id);
+      const completed = completedSet.has(lesson.lessonId);
 
       return {
         id: lesson.id,
@@ -212,9 +267,14 @@ export const navigationService = {
    * Get full lesson content (text or video).
    */
   async getLessonContent(lessonId: string): Promise<LessonContent | null> {
+    const resolvedLesson = await this.resolveLessonIdentifier(lessonId);
+    if (!resolvedLesson) {
+      return null;
+    }
+
     const [lesson] = await db
       .select({
-        id: lessons.id,
+        id: lessons.slug,
         title: lessons.title,
         contentType: lessons.contentType,
         contentBody: lessons.contentBody,
@@ -223,7 +283,7 @@ export const navigationService = {
         totalSlides: lessons.totalSlides,
       })
       .from(lessons)
-      .where(eq(lessons.id, lessonId))
+      .where(eq(lessons.id, resolvedLesson.id))
       .limit(1);
 
     if (!lesson) {
@@ -241,17 +301,22 @@ export const navigationService = {
     segmentId: string,
     userId: string
   ): Promise<{ moduleId: string; lessonId: string } | null> {
+    const resolvedSegment = await this.resolveSegmentIdentifier(segmentId);
+    if (!resolvedSegment) {
+      return null;
+    }
+
     // Get all modules for the segment ordered by sort_order
     const segmentModules = await db
-      .select({ id: modules.id })
+      .select({ id: modules.id, slug: modules.slug })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId))
+      .where(eq(modules.segmentId, resolvedSegment.id))
       .orderBy(asc(modules.sortOrder));
 
     for (const mod of segmentModules) {
       // Get lessons for this module ordered by sort_order
       const moduleLessons = await db
-        .select({ id: lessons.id })
+        .select({ id: lessons.id, slug: lessons.slug })
         .from(lessons)
         .where(eq(lessons.moduleId, mod.id))
         .orderBy(asc(lessons.sortOrder));
@@ -278,7 +343,7 @@ export const navigationService = {
       // Find first incomplete lesson
       for (const lesson of moduleLessons) {
         if (!completedSet.has(lesson.id)) {
-          return { moduleId: mod.id, lessonId: lesson.id };
+          return { moduleId: mod.slug, lessonId: lesson.slug };
         }
       }
       // All lessons in this module are completed, continue to next module
@@ -295,6 +360,11 @@ export const navigationService = {
    * Returns LESSON_LOCKED with the prerequisite lesson ID when access is denied.
    */
   async canAccessLesson(lessonId: string, userId: string): Promise<AccessResult> {
+    const resolvedLesson = await this.resolveLessonIdentifier(lessonId);
+    if (!resolvedLesson) {
+      return { accessible: true };
+    }
+
     // Get the lesson's module and sort_order
     const [lesson] = await db
       .select({
@@ -303,7 +373,7 @@ export const navigationService = {
         sortOrder: lessons.sortOrder,
       })
       .from(lessons)
-      .where(eq(lessons.id, lessonId))
+      .where(eq(lessons.id, resolvedLesson.id))
       .limit(1);
 
     if (!lesson) {

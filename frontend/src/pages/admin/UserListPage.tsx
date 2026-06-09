@@ -137,7 +137,7 @@ export function UserListPage() {
     {
       label: 'View Profile',
       icon: <BookOpen size={16} />,
-      onClick: () => navigate(`/admin/users/${user.id}`),
+      onClick: () => navigate(`/admin/users/${user.slug}`),
     },
     ...(user.role === 'learner' ? [{
       label: 'Assign Segment',
@@ -253,7 +253,7 @@ export function UserListPage() {
                     <UserTableRow
                       key={user.id}
                       user={user}
-                      onNavigate={() => navigate(`/admin/users/${user.id}`)}
+                      onNavigate={() => navigate(`/admin/users/${user.slug}`)}
                       onActionClick={(e) => e.stopPropagation()}
                       actions={getRowActions(user)}
                     />
@@ -267,7 +267,7 @@ export function UserListPage() {
               {filteredUsers.map((user) => (
                 <div
                   key={user.id}
-                  onClick={() => navigate(`/admin/users/${user.id}`)}
+                  onClick={() => navigate(`/admin/users/${user.slug}`)}
                   className="flex items-center justify-between p-4 hover:bg-muted-50 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3">

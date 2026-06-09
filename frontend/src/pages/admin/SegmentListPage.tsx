@@ -38,12 +38,12 @@ export function SegmentListPage() {
       {
         label: 'Edit',
         icon: <Edit size={16} />,
-        onClick: () => navigate(`/admin/content/segments/${segment.id}/edit`),
+        onClick: () => navigate(`/admin/content/segments/${segment.slug}/edit`),
       },
       {
         label: 'View',
         icon: <BookOpen size={16} />,
-        onClick: () => navigate(`/admin/content/segments/${segment.id}`),
+        onClick: () => navigate(`/admin/content/segments/${segment.slug}`),
       },
     ];
 
@@ -198,7 +198,7 @@ export function SegmentListPage() {
                     >
                       <td className="px-6 py-4">
                         <button
-                          onClick={() => navigate(`/admin/content/segments/${segment.id}`)}
+                          onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
                           className="text-left"
                         >
                           <p className="text-body font-medium text-navy hover:text-primary transition">

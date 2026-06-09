@@ -1,39 +1,23 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import crypto from 'crypto';
+import { env } from '../config/env.js';
 import { authenticate } from '../middleware/auth.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { storageService } from '../services/storage.service.js';
 
 // --- Storage Configuration ---
 
-const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
+const memoryStorage = multer.memoryStorage();
 
-// Ensure uploads directory exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+function buildObjectKey(folder: string, originalName: string): { key: string; filename: string } {
+  const ext = path.extname(originalName).toLowerCase();
+  const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+  const prefix = env.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, '');
+  const key = [prefix, folder, filename].filter(Boolean).join('/');
 
-/**
- * Creates a multer storage that organizes files into subdirectories.
- * Path format: uploads/{subdir}/{timestamp}-{random}.{ext}
- */
-function createStorage(subdir: string) {
-  return multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      const dir = path.join(UPLOADS_DIR, subdir);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      cb(null, dir);
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-      cb(null, uniqueName);
-    },
-  });
+  return { key, filename };
 }
 
 // --- Slides Upload ---
@@ -51,7 +35,7 @@ const slidesFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileF
 };
 
 const slidesUpload = multer({
-  storage: createStorage('slides'),
+  storage: memoryStorage,
   fileFilter: slidesFilter,
   limits: { fileSize: MAX_SLIDES_SIZE },
 });
@@ -71,10 +55,62 @@ const videoFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFi
 };
 
 const videoUpload = multer({
-  storage: createStorage('videos'),
+  storage: memoryStorage,
   fileFilter: videoFilter,
   limits: { fileSize: MAX_VIDEO_SIZE },
 });
+
+// --- Image Upload ---
+
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
+const imageFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(ext) && file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error(`File type not allowed. Allowed: ${IMAGE_EXTENSIONS.join(', ')}`));
+  }
+};
+
+const imageUpload = multer({
+  storage: memoryStorage,
+  fileFilter: imageFilter,
+  limits: { fileSize: MAX_IMAGE_SIZE },
+});
+
+async function handleS3Upload(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  options: { folder: string; missingMessage: string }
+): Promise<void> {
+  try {
+    if (!req.file) {
+      sendError(res, 400, 'NO_FILE', options.missingMessage);
+      return;
+    }
+
+    const { key, filename } = buildObjectKey(options.folder, req.file.originalname);
+    const uploaded = await storageService.uploadFile({
+      key,
+      body: req.file.buffer,
+      contentType: req.file.mimetype,
+    });
+
+    sendSuccess(res, {
+      url: uploaded.url,
+      key: uploaded.key,
+      filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimeType: req.file.mimetype,
+    }, 201);
+  } catch (error) {
+    next(error);
+  }
+}
 
 // --- Router ---
 
@@ -92,24 +128,10 @@ uploadRouter.post(
   '/slides',
   slidesUpload.single('file'),
   (req: Request, res: Response, next: NextFunction): void => {
-    try {
-      if (!req.file) {
-        sendError(res, 400, 'NO_FILE', 'No file uploaded. Please select a file.');
-        return;
-      }
-
-      const fileUrl = `/uploads/slides/${req.file.filename}`;
-
-      sendSuccess(res, {
-        url: fileUrl,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-      }, 201);
-    } catch (error) {
-      next(error);
-    }
+    void handleS3Upload(req, res, next, {
+      folder: 'slides',
+      missingMessage: 'No file uploaded. Please select a file.',
+    });
   }
 );
 
@@ -122,24 +144,26 @@ uploadRouter.post(
   '/video',
   videoUpload.single('file'),
   (req: Request, res: Response, next: NextFunction): void => {
-    try {
-      if (!req.file) {
-        sendError(res, 400, 'NO_FILE', 'No file uploaded. Please select a video file.');
-        return;
-      }
+    void handleS3Upload(req, res, next, {
+      folder: 'videos',
+      missingMessage: 'No file uploaded. Please select a video file.',
+    });
+  }
+);
 
-      const fileUrl = `/uploads/videos/${req.file.filename}`;
-
-      sendSuccess(res, {
-        url: fileUrl,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-      }, 201);
-    } catch (error) {
-      next(error);
-    }
+/**
+ * POST /api/uploads/images
+ * Upload an image file (png, jpg, jpeg, webp). Max 5MB.
+ * Returns the public URL to access the file.
+ */
+uploadRouter.post(
+  '/images',
+  imageUpload.single('file'),
+  (req: Request, res: Response, next: NextFunction): void => {
+    void handleS3Upload(req, res, next, {
+      folder: 'images',
+      missingMessage: 'No file uploaded. Please select an image file.',
+    });
   }
 );
 

@@ -47,6 +47,23 @@ router.get(
 );
 
 /**
+ * GET /api/admin/users/slug/:slug
+ * Get a single user profile by unique slug.
+ */
+router.get(
+  '/slug/:slug',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const slug = req.params.slug as string;
+      const user = await userManagementService.getBySlug(slug);
+      sendSuccess(res, user);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * PUT /api/admin/users/:id
  * Update user name or role.
  */

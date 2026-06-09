@@ -2,6 +2,7 @@ import { eq, and, asc, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { lessons, modules, lessonCompletions } from '../db/schema/index.js';
 import { segmentAccessService } from './segment-access.service.js';
+import { navigationService } from './navigation.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,11 @@ export const completionService = {
     userId: string,
     lessonId: string
   ): Promise<CompletionResult | null | { granted: false; code: string }> {
+    const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonId);
+    if (!resolvedLesson) {
+      return null;
+    }
+
     // 1. Verify the lesson exists
     const [lesson] = await db
       .select({
@@ -39,7 +45,7 @@ export const completionService = {
         sortOrder: lessons.sortOrder,
       })
       .from(lessons)
-      .where(eq(lessons.id, lessonId))
+      .where(eq(lessons.id, resolvedLesson.id))
       .limit(1);
 
     if (!lesson) {
@@ -74,7 +80,7 @@ export const completionService = {
       .where(
         and(
           eq(lessonCompletions.userId, userId),
-          eq(lessonCompletions.lessonId, lessonId)
+          eq(lessonCompletions.lessonId, resolvedLesson.id)
         )
       )
       .limit(1);
@@ -93,7 +99,7 @@ export const completionService = {
       .insert(lessonCompletions)
       .values({
         userId,
-        lessonId,
+        lessonId: resolvedLesson.id,
       })
       .onConflictDoNothing();
 
@@ -146,7 +152,12 @@ export const completionService = {
     let nextLessonId: string | null = null;
     const currentIndex = moduleLessons.findIndex((l) => l.id === lesson.id);
     if (currentIndex >= 0 && currentIndex < moduleLessons.length - 1) {
-      nextLessonId = moduleLessons[currentIndex + 1].id;
+      const [nextLesson] = await db
+        .select({ slug: lessons.slug })
+        .from(lessons)
+        .where(eq(lessons.id, moduleLessons[currentIndex + 1].id))
+        .limit(1);
+      nextLessonId = nextLesson?.slug ?? null;
     }
 
     // If no next lesson in same module, find first lesson in next module
@@ -162,14 +173,14 @@ export const completionService = {
       if (currentModuleIndex >= 0 && currentModuleIndex < nextModules.length - 1) {
         const nextModule = nextModules[currentModuleIndex + 1];
         const [firstLesson] = await db
-          .select({ id: lessons.id })
+          .select({ slug: lessons.slug })
           .from(lessons)
           .where(eq(lessons.moduleId, nextModule.id))
           .orderBy(asc(lessons.sortOrder))
           .limit(1);
 
         if (firstLesson) {
-          nextLessonId = firstLesson.id;
+          nextLessonId = firstLesson.slug;
         }
       }
     }

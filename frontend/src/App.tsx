@@ -61,12 +61,12 @@ function AppRoutes() {
           <Route path="/admin/profile" element={<ProfilePage />} />
           <Route path="/admin/users" element={<UserListPage />} />
           <Route path="/admin/users/create" element={<UserCreatePage />} />
-          <Route path="/admin/users/:userId" element={<UserProfilePage />} />
+          <Route path="/admin/users/:userSlug" element={<UserProfilePage />} />
           <Route path="/admin/assign-training" element={<AssignTrainingPage />} />
           <Route path="/admin/content" element={<SegmentListPage />} />
           <Route path="/admin/content/segments/create" element={<SegmentCreateWizard />} />
-          <Route path="/admin/content/segments/:id" element={<SegmentDetailsPage />} />
-          <Route path="/admin/content/segments/:id/edit" element={<SegmentEditPage />} />
+          <Route path="/admin/content/segments/:segmentSlug" element={<SegmentDetailsPage />} />
+          <Route path="/admin/content/segments/:segmentSlug/edit" element={<SegmentEditPage />} />
           <Route path="/admin/*" element={<AdminDashboard />} />
         </Route>
       </Route>

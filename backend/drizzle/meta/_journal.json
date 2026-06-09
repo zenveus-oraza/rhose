@@ -71,6 +71,20 @@
       "when": 1780666512758,
       "tag": "0009_friendly_jimmy_woo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781036000000,
+      "tag": "0010_add_user_slugs",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781037000000,
+      "tag": "0011_add_content_slugs",
+      "breakpoints": true
     }
   ]
 }
