@@ -1,6 +1,7 @@
 import { eq, and, inArray, desc } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { lessons, modules, lessonCompletions, quizzes, quizAttempts, quizQuestions } from '../db/schema/index.js';
+import { segmentService } from './segment.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,11 +34,13 @@ export const progressService = {
    * Returns 0% when the segment has zero lessons.
    */
   async getSegmentProgress(segmentId: string, userId: string): Promise<SegmentProgress> {
+    const segment = await segmentService.resolveIdentifier(segmentId);
+
     // 1. Get all modules for the segment
     const segmentModules = await db
       .select({ id: modules.id })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId));
+      .where(eq(modules.segmentId, segment.id));
 
     const moduleIds = segmentModules.map((m) => m.id);
 
@@ -75,7 +78,7 @@ export const progressService = {
     const [quiz] = await db
       .select({ id: quizzes.id })
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     let quizzesAttempted = 0;

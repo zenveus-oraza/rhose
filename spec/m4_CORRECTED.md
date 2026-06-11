@@ -1,5 +1,16 @@
 # M4: Pagination & Search Implementation
 
+## Milestone Alignment Update
+
+In the current merged branch, M4 is implemented alongside previously delivered M3 infrastructure. The practical M4 baseline now includes:
+
+- slug-based URLs and slug-aware backend lookup
+- S3 upload storage
+- SES via Nodemailer
+- PM2/EC2 deployment readiness
+
+Any M4 quiz/progress behavior must keep working with those merged changes, especially slug-based segment/module/lesson references and sequential migration ordering.
+
 ## Overview
 
 This milestone implements comprehensive pagination and search across all list views and dropdowns throughout the application. All lists now support server-side pagination with consistent response formats, search filtering, and improved user experience for large datasets. **All existing features are preserved and enhanced.**

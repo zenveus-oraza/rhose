@@ -75,15 +75,15 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1781036000000,
-      "tag": "0010_add_user_slugs",
+      "when": 1781180969000,
+      "tag": "0010_omniscient_lady_ursula",
       "breakpoints": true
     },
     {
       "idx": 11,
       "version": "7",
-      "when": 1781037000000,
-      "tag": "0011_add_content_slugs",
+      "when": 1781180969800,
+      "tag": "0011_add_quiz_settings",
       "breakpoints": true
     },
     {

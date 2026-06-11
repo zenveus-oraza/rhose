@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, BookOpen, Search, Archive, Edit, KeyRound, FileText } from 'lucide-react';
+import { Calendar, Users, BookOpen, Search, Archive, Edit, FileText } from 'lucide-react';
 import { useSegments, useUpdateSegment } from '@/hooks/useAdminApi';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';

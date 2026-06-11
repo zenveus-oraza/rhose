@@ -14,6 +14,13 @@ This implementation plan covers M4 features plus critical UI fixes from M2/M3 th
 8. **FIX: Content Management list** — richer row metadata (duration, modules, users)
 9. Progress tracking extensions with quiz data
 
+## Merge Alignment
+
+- [x] A. Preserve merged M3 infrastructure in M4
+  - [x] A.1 Keep slug-based routing and lookup compatibility for M4 quiz/progress flows
+  - [x] A.2 Preserve S3 uploads, SES/Nodemailer configuration, and PM2 deployment work while layering M4 features
+  - [x] A.3 Reconcile migration ordering so quiz migrations and slug migrations do not conflict after the M3→M4 merge
+
 ## Tasks
 
 - [x] 1. Fix: Learner Lesson Page Layout (left panel replaces sidebar)

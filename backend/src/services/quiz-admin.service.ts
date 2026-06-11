@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { quizzes, quizQuestions, quizOptions } from '../db/schema/quizzes.js';
-import { segments } from '../db/schema/segments.js';
 import { AppError } from '../utils/AppError.js';
 import type { CreateQuizInput } from '../schemas/quiz.schemas.js';
+import { segmentService } from './segment.service.js';
 
 /**
  * QuizAdminService — handles admin CRUD operations for per-segment quizzes.
@@ -15,23 +15,14 @@ export const quizAdminService = {
    * Runs inside a transaction to ensure atomicity.
    */
   async createOrUpdateQuiz(segmentId: string, data: CreateQuizInput) {
-    // Verify segment exists
-    const [segment] = await db
-      .select({ id: segments.id })
-      .from(segments)
-      .where(eq(segments.id, segmentId))
-      .limit(1);
-
-    if (!segment) {
-      throw AppError.notFound('Segment not found');
-    }
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     await db.transaction(async (tx) => {
       // Check if quiz already exists for this segment
       const [existingQuiz] = await tx
         .select({ id: quizzes.id })
         .from(quizzes)
-        .where(eq(quizzes.segmentId, segmentId))
+        .where(eq(quizzes.segmentId, segment.id))
         .limit(1);
 
       if (existingQuiz) {
@@ -45,7 +36,7 @@ export const quizAdminService = {
         .values({
           title: data.title,
           description: data.description ?? null,
-          segmentId,
+          segmentId: segment.id,
           isRequired: data.is_required ?? false,
           maxAttempts: data.max_attempts ?? null,
         })
@@ -86,22 +77,13 @@ export const quizAdminService = {
    * Returns null if no quiz exists for the segment.
    */
   async getQuizForSegment(segmentId: string) {
-    // Verify segment exists
-    const [segment] = await db
-      .select({ id: segments.id })
-      .from(segments)
-      .where(eq(segments.id, segmentId))
-      .limit(1);
-
-    if (!segment) {
-      throw AppError.notFound('Segment not found');
-    }
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Get quiz for segment
     const [quiz] = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     if (!quiz) {
@@ -143,7 +125,7 @@ export const quizAdminService = {
       id: quiz.id,
       title: quiz.title,
       description: quiz.description,
-      segmentId: quiz.segmentId,
+      segmentId: segment.slug,
       isRequired: quiz.isRequired,
       maxAttempts: quiz.maxAttempts,
       createdAt: quiz.createdAt,
@@ -157,22 +139,13 @@ export const quizAdminService = {
    * Throws 404 if segment or quiz not found.
    */
   async deleteQuiz(segmentId: string) {
-    // Verify segment exists
-    const [segment] = await db
-      .select({ id: segments.id })
-      .from(segments)
-      .where(eq(segments.id, segmentId))
-      .limit(1);
-
-    if (!segment) {
-      throw AppError.notFound('Segment not found');
-    }
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Find the quiz
     const [quiz] = await db
       .select({ id: quizzes.id })
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     if (!quiz) {

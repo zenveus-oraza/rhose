@@ -2,10 +2,10 @@ import { eq, desc, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { quizzes, quizQuestions, quizOptions, quizAttempts, quizAttemptAnswers } from '../db/schema/quizzes.js';
 import { segmentAssignments } from '../db/schema/segment-assignments.js';
-import { segments } from '../db/schema/segments.js';
 import { AppError } from '../utils/AppError.js';
 import { activityService } from './activity.service.js';
 import type { SubmitQuizAttemptInput } from '../schemas/quiz.schemas.js';
+import { segmentService } from './segment.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,16 +93,7 @@ export const quizService = {
    * Checks segment existence (404) and assignment existence (403).
    */
   async verifySegmentAccess(segmentId: string, userId: string): Promise<void> {
-    // Check segment exists
-    const [segment] = await db
-      .select({ id: segments.id })
-      .from(segments)
-      .where(eq(segments.id, segmentId))
-      .limit(1);
-
-    if (!segment) {
-      throw AppError.notFound('Segment not found');
-    }
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Check user is assigned to this segment
     const [assignment] = await db
@@ -111,7 +102,7 @@ export const quizService = {
       .where(
         and(
           eq(segmentAssignments.userId, userId),
-          eq(segmentAssignments.segmentId, segmentId)
+          eq(segmentAssignments.segmentId, segment.id)
         )
       )
       .limit(1);
@@ -129,12 +120,13 @@ export const quizService = {
   async getQuizForLearner(segmentId: string, userId: string): Promise<LearnerQuiz> {
     // Verify segment access
     await this.verifySegmentAccess(segmentId, userId);
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Get quiz for segment
     const [quiz] = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     if (!quiz) {
@@ -175,7 +167,7 @@ export const quizService = {
       id: quiz.id,
       title: quiz.title,
       description: quiz.description,
-      segmentId: quiz.segmentId,
+      segmentId: segment.slug,
       isRequired: quiz.isRequired,
       maxAttempts: quiz.maxAttempts,
       questions: questionsWithOptions,
@@ -196,12 +188,13 @@ export const quizService = {
   async submitAttempt(segmentId: string, userId: string, data: SubmitQuizAttemptInput): Promise<AttemptResult> {
     // Verify segment access
     await this.verifySegmentAccess(segmentId, userId);
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Get quiz for segment
     const [quiz] = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     if (!quiz) {
@@ -337,12 +330,13 @@ export const quizService = {
   async getAttemptHistory(segmentId: string, userId: string): Promise<AttemptSummary[]> {
     // Verify segment access
     await this.verifySegmentAccess(segmentId, userId);
+    const segment = await segmentService.resolveIdentifier(segmentId);
 
     // Get quiz for segment
     const [quiz] = await db
       .select({ id: quizzes.id })
       .from(quizzes)
-      .where(eq(quizzes.segmentId, segmentId))
+      .where(eq(quizzes.segmentId, segment.id))
       .limit(1);
 
     if (!quiz) {

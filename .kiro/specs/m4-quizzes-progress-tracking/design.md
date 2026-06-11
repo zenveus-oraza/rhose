@@ -15,6 +15,17 @@ This design defines the implementation approach for M4: Quizzes & Progress Track
 8. **Fix: Admin Dashboard Segment Overview** (rich metadata per screenshot)
 9. **Fix: Content Management list** (richer row metadata)
 
+### Cross-Milestone Merge Alignment
+
+This branch now carries merged M3 operational/infrastructure work that M4 must preserve:
+
+- slug-based URLs for users, segments, modules, and lessons
+- S3-backed uploads for images, slides, and videos
+- Nodemailer configured for Amazon SES SMTP
+- PM2/EC2 deployment readiness artifacts
+
+Accordingly, any M4 route/service added on top of the earlier milestones must remain compatible with slug identifiers, and the post-merge migration sequence must stay linear and non-conflicting.
+
 ### Relevant Tech Context
 
 - Monorepo: frontend (Vite, React, TypeScript, shadcn/ui, Tailwind) + backend (Node.js, Express, PostgreSQL, Drizzle ORM)

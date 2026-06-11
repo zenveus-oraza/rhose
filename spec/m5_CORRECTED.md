@@ -1,5 +1,16 @@
 # M5: UI/UX Refinements & Profile Enhancements
 
+## Milestone Alignment Update
+
+The current branch already contains part of the usual M5 operational baseline:
+
+- SES-compatible Nodemailer configuration
+- S3-backed uploads
+- PM2/EC2 deployment setup files
+- deployment and env setup docs
+
+Future M5 implementation should treat these as existing foundations and extend them with the remaining scheduled-email, logging, deduplication, QA, and final delivery work.
+
 ## Overview
 
 This milestone delivers refined user interface and experience improvements, including profile picture support with lazy loading, admin profile editing functionality, phone number support, and job title display. **All existing features, actions, and user capabilities are preserved.**
