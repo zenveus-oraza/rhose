@@ -13,9 +13,9 @@ interface SegmentFormErrors {
 }
 
 export function SegmentEditPage() {
-  const { id } = useParams<{ id: string }>();
+  const { segmentSlug } = useParams<{ segmentSlug: string }>();
   const navigate = useNavigate();
-  const { data: segment, isLoading, error } = useSegment(id!);
+  const { data: segment, isLoading, error } = useSegment(segmentSlug!);
   const updateSegment = useUpdateSegment();
   const { toast } = useToast();
 
@@ -54,11 +54,11 @@ export function SegmentEditPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate() || !id) return;
+    if (!validate() || !segmentSlug) return;
 
     updateSegment.mutate(
       {
-        id,
+        id: segmentSlug,
         data: {
           title: title.trim(),
           description: description.trim() || undefined,
@@ -67,9 +67,9 @@ export function SegmentEditPage() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (updatedSegment) => {
           toast('success', 'Segment updated successfully');
-          navigate(`/admin/content/segments/${id}`);
+          navigate(`/admin/content/segments/${updatedSegment.slug}`);
         },
       }
     );
@@ -101,7 +101,7 @@ export function SegmentEditPage() {
     <div className="py-4 lg:px-8">
       <div className="mb-5">
         <button
-          onClick={() => navigate(`/admin/content/segments/${id}`)}
+          onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
           className="mb-4 inline-flex items-center gap-1 text-helper text-muted-500 hover:text-navy transition"
         >
           <ArrowLeft size={16} />
@@ -215,7 +215,7 @@ export function SegmentEditPage() {
         <div className="flex items-center justify-end gap-3 pt-4">
           <button
             type="button"
-            onClick={() => navigate(`/admin/content/segments/${id}`)}
+            onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
             className="rounded-lg border border-muted-300 px-4 py-2 text-helper font-medium text-muted-700 hover:bg-muted-50 transition"
           >
             Cancel

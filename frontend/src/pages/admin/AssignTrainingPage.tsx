@@ -22,7 +22,9 @@ export function AssignTrainingPage() {
   // Pre-select segment from URL param when segments load
   useEffect(() => {
     if (preSelectedSegmentId && segmentsData?.data && !selectedSegment) {
-      const seg = segmentsData.data.find((s) => s.id === preSelectedSegmentId && s.status === 'active');
+      const seg = segmentsData.data.find(
+        (s) => (s.id === preSelectedSegmentId || s.slug === preSelectedSegmentId) && s.status === 'active'
+      );
       if (seg) setSelectedSegment(seg);
     }
   }, [preSelectedSegmentId, segmentsData?.data, selectedSegment]);

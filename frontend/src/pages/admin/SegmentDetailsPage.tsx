@@ -39,17 +39,17 @@ import type { ModuleWithLessonCount, Lesson, SegmentStatus } from '@/types/admin
 import type { QuizQuestionInput } from '@/types/quiz';
 
 export function SegmentDetailsPage() {
-  const { id } = useParams<{ id: string }>();
+  const { segmentSlug } = useParams<{ segmentSlug: string }>();
   const navigate = useNavigate();
 
   // Pagination state
   const [modulePage, setModulePage] = useState(1);
   const [assignmentPage, setAssignmentPage] = useState(1);
 
-  const { data: segment, isLoading, error } = useSegment(id!);
-  const { data: modulesData } = useModules(id!, { page: modulePage, limit: 10 });
-  const { data: assignmentsData } = useSegmentAssignments(id!, { page: assignmentPage, limit: 20 });
-  const { data: quiz } = useSegmentQuiz(id!);
+  const { data: segment, isLoading, error } = useSegment(segmentSlug!);
+  const { data: modulesData } = useModules(segment?.id ?? segmentSlug ?? '', { page: modulePage, limit: 10 });
+  const { data: assignmentsData } = useSegmentAssignments(segment?.id ?? '', { page: assignmentPage, limit: 20 });
+  const { data: quiz } = useSegmentQuiz(segment?.id ?? '');
   const updateSegment = useUpdateSegment();
   const deleteModule = useDeleteModule();
   const deleteLesson = useDeleteLesson();
@@ -93,12 +93,12 @@ export function SegmentDetailsPage() {
   }
 
   function handleStatusChange(newStatus: SegmentStatus) {
-    if (!id) return;
-    updateSegment.mutate({ id, data: { status: newStatus } });
+    if (!segmentSlug) return;
+    updateSegment.mutate({ id: segmentSlug, data: { status: newStatus } });
   }
 
   function handleReorderModule(currentIndex: number, direction: 'up' | 'down') {
-    if (!id || !modules || modules.length < 2) return;
+    if (!segmentSlug || !segment || !modules || modules.length < 2) return;
     const newOrder = [...modules];
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= newOrder.length) return;
@@ -108,7 +108,7 @@ export function SegmentDetailsPage() {
 
     // Submit the new order
     reorderModules.mutate({
-      segmentId: id,
+      segmentId: segment.id,
       data: { orderedIds: newOrder.map((m) => m.id) },
     });
   }
@@ -172,7 +172,7 @@ export function SegmentDetailsPage() {
             {segment.status === 'active' && (
               <>
                 <button
-                  onClick={() => navigate(`/admin/assign-training?segmentId=${id}`)}
+                  onClick={() => navigate(`/admin/assign-training?segmentId=${segment.id}`)}
                   className="rounded-lg bg-secondary px-3 py-1.5 text-helper font-medium text-white hover:bg-secondary/90 transition"
                 >
                   Assign Users
@@ -187,7 +187,7 @@ export function SegmentDetailsPage() {
               </>
             )}
             <button
-              onClick={() => navigate(`/admin/content/segments/${id}/edit`)}
+              onClick={() => navigate(`/admin/content/segments/${segment.slug}/edit`)}
               className="rounded-lg border border-muted-300 px-3 py-1.5 text-helper font-medium text-muted-700 hover:bg-muted-50 transition"
             >
               <Edit size={16} />
@@ -259,7 +259,7 @@ export function SegmentDetailsPage() {
                 <ModuleRow
                   key={mod.id}
                   module={mod}
-                  segmentId={id!}
+                  segmentId={segment.id}
                   expanded={expandedModules.has(mod.id)}
                   onToggle={() => toggleModule(mod.id)}
                   onEdit={() => {
@@ -405,9 +405,9 @@ export function SegmentDetailsPage() {
 
                         if (updatedQuestions.length === 0) {
                           // Delete the whole quiz if no questions remain
-                          deleteQuiz.mutate(id!);
+                          deleteQuiz.mutate(segment?.id ?? '');
                         } else {
-                          createOrUpdateQuiz.mutate({ segmentId: id!, data: { questions: updatedQuestions } });
+                          createOrUpdateQuiz.mutate({ segmentId: segment?.id ?? '', data: { questions: updatedQuestions } });
                         }
                       }}
                       className="rounded p-1.5 text-muted-400 hover:text-danger hover:bg-danger-50 transition"
@@ -439,7 +439,7 @@ export function SegmentDetailsPage() {
           <div className="flex items-center justify-between border-b border-muted-200 px-6 py-4">
             <h2 className="text-base font-semibold text-navy">Assigned Users</h2>
             <button
-              onClick={() => navigate(`/admin/assign-training?segmentId=${id}`)}
+              onClick={() => navigate(`/admin/assign-training?segmentId=${segment?.id ?? ''}`)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-teal px-3 py-1.5 text-helper font-medium text-teal hover:bg-teal-50 transition"
             >
               <Users size={16} />
@@ -582,7 +582,7 @@ export function SegmentDetailsPage() {
           setModuleDrawerOpen(false);
           setEditingModule(null);
         }}
-        segmentId={id!}
+        segmentId={segment.id}
         module={editingModule}
       />
 
@@ -626,7 +626,7 @@ export function SegmentDetailsPage() {
           }
 
           createOrUpdateQuiz.mutate(
-            { segmentId: id!, data: { questions: allQuestions } },
+            { segmentId: segment?.id ?? '', data: { questions: allQuestions } },
             {
               onSuccess: () => {
                 setQuizDrawerOpen(false);
@@ -673,7 +673,7 @@ export function SegmentDetailsPage() {
               }));
             createOrUpdateQuiz.mutate(
               {
-                segmentId: id!,
+                segmentId: segment?.id ?? '',
                 data: {
                   questions: existingQuestions,
                   is_required: settings.isRequired,
@@ -694,7 +694,7 @@ export function SegmentDetailsPage() {
         onConfirm={() => {
           if (deleteModuleTarget) {
             deleteModule.mutate(
-              { id: deleteModuleTarget.id, segmentId: id! },
+              { id: deleteModuleTarget.id, segmentId: segment.id },
               { onSuccess: () => setDeleteModuleTarget(null) }
             );
           }

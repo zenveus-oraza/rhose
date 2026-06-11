@@ -75,15 +75,22 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1780921589332,
-      "tag": "0010_omniscient_lady_ursula",
+      "when": 1781036000000,
+      "tag": "0010_add_user_slugs",
       "breakpoints": true
     },
     {
       "idx": 11,
       "version": "7",
-      "when": 1780932093974,
-      "tag": "0011_add_quiz_settings",
+      "when": 1781037000000,
+      "tag": "0011_add_content_slugs",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781180970122,
+      "tag": "0012_loud_baron_zemo",
       "breakpoints": true
     }
   ]

@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { z } from 'zod';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient, ApiError } from '@/services/api';
+import { uploadImage } from '@/services/upload.service';
 import { Button } from '@/components/ui/Button';
 import { ProfileImageUpload } from '@/components/ui/ProfileImageUpload';
 import { useToast } from '@/components/ui/Toast';
@@ -69,15 +70,11 @@ export function ProfilePage() {
     : '';
 
   async function handleImageUpload(file: File) {
-    const reader = new FileReader();
-    const base64 = await new Promise<string>((resolve) => {
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.readAsDataURL(file);
-    });
     try {
+      const uploaded = await uploadImage(file);
       await apiClient<ProfileData>('/users/profile', {
         method: 'PATCH',
-        body: JSON.stringify({ profileImage: base64 }),
+        body: JSON.stringify({ profileImage: uploaded.url }),
       });
       toast('success', 'Profile photo updated');
       await refreshUser();

@@ -1,23 +1,46 @@
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc, sql, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { modules } from '../db/schema/modules.js';
 import { segments } from '../db/schema/segments.js';
 import { lessons } from '../db/schema/lessons.js';
 import { AppError } from '../utils/AppError.js';
 import type { PaginatedResult } from './user-management.service.js';
+import { generateUniqueSlug, isUuid } from './slug.service.js';
 
 /**
  * Module Service — handles all business logic for module CRUD and sort order management.
  */
 export const moduleService = {
+  async resolveIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(modules.id, identifier), eq(modules.slug, identifier))
+      : eq(modules.slug, identifier);
+
+    const [module] = await db
+      .select()
+      .from(modules)
+      .where(condition)
+      .limit(1);
+
+    if (!module) {
+      throw AppError.notFound('Module not found');
+    }
+
+    return module;
+  },
+
   /**
    * Verify that a segment exists. Throws 404 if not found.
    */
-  async verifySegmentExists(segmentId: string) {
+  async verifySegmentExists(segmentIdentifier: string) {
+    const condition = isUuid(segmentIdentifier)
+      ? or(eq(segments.id, segmentIdentifier), eq(segments.slug, segmentIdentifier))
+      : eq(segments.slug, segmentIdentifier);
+
     const [segment] = await db
-      .select({ id: segments.id })
+      .select({ id: segments.id, slug: segments.slug })
       .from(segments)
-      .where(eq(segments.id, segmentId))
+      .where(condition)
       .limit(1);
 
     if (!segment) {
@@ -33,21 +56,23 @@ export const moduleService = {
    */
   async create(segmentId: string, data: { title: string; description?: string }) {
     // Verify parent segment exists
-    await this.verifySegmentExists(segmentId);
+    const segment = await this.verifySegmentExists(segmentId);
 
     // Get the next sort_order for this segment
     const [maxResult] = await db
       .select({ maxOrder: sql<number>`coalesce(max(${modules.sortOrder}), 0)` })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId));
+      .where(eq(modules.segmentId, segment.id));
 
     const nextSortOrder = (maxResult?.maxOrder ?? 0) + 1;
+    const slug = await generateUniqueSlug(modules, modules.id, modules.slug, data.title, 'module');
 
     const [module] = await db
       .insert(modules)
       .values({
-        segmentId,
+        segmentId: segment.id,
         title: data.title,
+        slug,
         description: data.description ?? null,
         sortOrder: nextSortOrder,
       })
@@ -65,7 +90,7 @@ export const moduleService = {
     params?: { page?: number; limit?: number }
   ): Promise<PaginatedResult<any>> {
     // Verify parent segment exists
-    await this.verifySegmentExists(segmentId);
+    const segment = await this.verifySegmentExists(segmentId);
 
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 20;
@@ -75,7 +100,7 @@ export const moduleService = {
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId));
+      .where(eq(modules.segmentId, segment.id));
 
     const total = countResult?.count ?? 0;
 
@@ -83,6 +108,7 @@ export const moduleService = {
     const result = await db
       .select({
         id: modules.id,
+        slug: modules.slug,
         title: modules.title,
         description: modules.description,
         segmentId: modules.segmentId,
@@ -92,7 +118,7 @@ export const moduleService = {
         lessonCount: sql<number>`(SELECT count(*)::int FROM "lessons" WHERE "lessons"."module_id" = "modules"."id")`,
       })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId))
+      .where(eq(modules.segmentId, segment.id))
       .orderBy(asc(modules.sortOrder))
       .limit(limit)
       .offset(offset);
@@ -113,26 +139,20 @@ export const moduleService = {
    * Throws 404 if not found.
    */
   async update(id: string, data: { title?: string; description?: string }) {
-    // Check module exists
-    const [existing] = await db
-      .select()
-      .from(modules)
-      .where(eq(modules.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Module not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     // Build update payload
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (data.title !== undefined) updateData.title = data.title;
+    if (data.title !== undefined) {
+      updateData.title = data.title;
+      updateData.slug = await generateUniqueSlug(modules, modules.id, modules.slug, data.title, 'module', existing.id);
+    }
     if (data.description !== undefined) updateData.description = data.description;
 
     const [updated] = await db
       .update(modules)
       .set(updateData)
-      .where(eq(modules.id, id))
+      .where(eq(modules.id, existing.id))
       .returning();
 
     return updated;
@@ -146,13 +166,13 @@ export const moduleService = {
    */
   async reorder(segmentId: string, orderedIds: string[]) {
     // Verify parent segment exists
-    await this.verifySegmentExists(segmentId);
+    const segment = await this.verifySegmentExists(segmentId);
 
     // Verify all IDs belong to this segment
     const existingModules = await db
       .select({ id: modules.id })
       .from(modules)
-      .where(eq(modules.segmentId, segmentId));
+      .where(eq(modules.segmentId, segment.id));
 
     const existingIds = new Set(existingModules.map((m) => m.id));
 
@@ -186,22 +206,13 @@ export const moduleService = {
    * After deletion, reorders remaining modules to maintain contiguous sort_order.
    */
   async delete(id: string) {
-    // Check module exists
-    const [existing] = await db
-      .select()
-      .from(modules)
-      .where(eq(modules.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Module not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     // Check for child lessons
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(lessons)
-      .where(eq(lessons.moduleId, id));
+      .where(eq(lessons.moduleId, existing.id));
 
     const lessonCount = countResult?.count ?? 0;
 
@@ -217,7 +228,7 @@ export const moduleService = {
     const segmentId = existing.segmentId;
 
     // Delete the module
-    await db.delete(modules).where(eq(modules.id, id));
+    await db.delete(modules).where(eq(modules.id, existing.id));
 
     // Reorder remaining modules in the segment to maintain contiguous sort_order
     const remainingModules = await db

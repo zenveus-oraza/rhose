@@ -9,6 +9,7 @@ export const modules = pgTable('modules', {
   id: uuid('id').primaryKey().defaultRandom(),
   segmentId: uuid('segment_id').notNull().references(() => segments.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
   description: text('description'),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),

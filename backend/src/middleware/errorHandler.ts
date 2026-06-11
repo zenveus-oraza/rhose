@@ -1,4 +1,5 @@
 import { ErrorRequestHandler } from 'express';
+import multer from 'multer';
 import { ZodError } from 'zod';
 import { AppError } from '../utils/AppError.js';
 
@@ -15,6 +16,15 @@ function formatZodError(error: ZodError): Record<string, string> {
     details[key] = issue.message;
   }
   return details;
+}
+
+function getStringProperty(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object' || !(key in value)) {
+    return undefined;
+  }
+
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === 'string' ? property : undefined;
 }
 
 /**
@@ -53,12 +63,36 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  // Multer upload errors
+  if (err instanceof multer.MulterError) {
+    const isSizeError = err.code === 'LIMIT_FILE_SIZE';
+    res.status(isSizeError ? 413 : 400).json({
+      success: false,
+      error: {
+        code: isSizeError ? 'FILE_TOO_LARGE' : 'UPLOAD_ERROR',
+        message: isSizeError ? 'The uploaded file is too large.' : err.message,
+      },
+    });
+    return;
+  }
+
+  if (err instanceof Error && err.message.startsWith('File type not allowed.')) {
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_FILE_TYPE',
+        message: err.message,
+      },
+    });
+    return;
+  }
+
   // Unknown / unhandled errors — never expose internals
   console.error('Unhandled error:', err);
 
   // Postgres-specific errors with user-friendly messages
-  if (err && typeof err === 'object' && 'code' in err) {
-    const pgCode = (err as any).code;
+  const pgCode = getStringProperty(err, 'code');
+  if (pgCode) {
     if (pgCode === '22001') {
       res.status(400).json({
         success: false,
@@ -82,7 +116,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   // PayloadTooLargeError
-  if (err && (err as any).type === 'entity.too.large') {
+  if (getStringProperty(err, 'type') === 'entity.too.large') {
     res.status(413).json({
       success: false,
       error: {

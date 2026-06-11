@@ -1,4 +1,4 @@
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc, sql, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { lessons } from '../db/schema/lessons.js';
 import { lessonCompletions } from '../db/schema/lesson-completions.js';
@@ -6,20 +6,43 @@ import { lessonProgress } from '../db/schema/lesson-progress.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
 import type { PaginatedResult } from './user-management.service.js';
+import { generateUniqueSlug, isUuid } from './slug.service.js';
 
 /**
  * Lesson Service — handles all business logic for lesson CRUD and sort order management.
  * Supports content_type conditional fields and estimated time fields.
  */
 export const lessonService = {
+  async resolveIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(lessons.id, identifier), eq(lessons.slug, identifier))
+      : eq(lessons.slug, identifier);
+
+    const [lesson] = await db
+      .select()
+      .from(lessons)
+      .where(condition)
+      .limit(1);
+
+    if (!lesson) {
+      throw AppError.notFound('Lesson not found');
+    }
+
+    return lesson;
+  },
+
   /**
    * Verify that a module exists. Throws 404 if not found.
    */
-  async verifyModuleExists(moduleId: string) {
+  async verifyModuleExists(moduleIdentifier: string) {
+    const condition = isUuid(moduleIdentifier)
+      ? or(eq(modules.id, moduleIdentifier), eq(modules.slug, moduleIdentifier))
+      : eq(modules.slug, moduleIdentifier);
+
     const [module] = await db
-      .select({ id: modules.id })
+      .select({ id: modules.id, slug: modules.slug })
       .from(modules)
-      .where(eq(modules.id, moduleId))
+      .where(condition)
       .limit(1);
 
     if (!module) {
@@ -44,21 +67,23 @@ export const lessonService = {
     estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
     // Verify parent module exists
-    await this.verifyModuleExists(moduleId);
+    const module = await this.verifyModuleExists(moduleId);
 
     // Get the next sort_order for this module
     const [maxResult] = await db
       .select({ maxOrder: sql<number>`coalesce(max(${lessons.sortOrder}), 0)` })
       .from(lessons)
-      .where(eq(lessons.moduleId, moduleId));
+      .where(eq(lessons.moduleId, module.id));
 
     const nextSortOrder = (maxResult?.maxOrder ?? 0) + 1;
+    const slug = await generateUniqueSlug(lessons, lessons.id, lessons.slug, data.title, 'lesson');
 
     const [lesson] = await db
       .insert(lessons)
       .values({
-        moduleId,
+        moduleId: module.id,
         title: data.title,
+        slug,
         contentType: data.content_type,
         contentBody: data.content_body ?? null,
         videoUrl: data.video_url ?? null,
@@ -80,7 +105,7 @@ export const lessonService = {
    */
   async listByModule(moduleId: string, params?: { page?: number; limit?: number }): Promise<PaginatedResult<any>> {
     // Verify parent module exists
-    await this.verifyModuleExists(moduleId);
+    const module = await this.verifyModuleExists(moduleId);
 
     const page = params?.page ?? 1;
     const limit = params?.limit ?? 20;
@@ -90,7 +115,7 @@ export const lessonService = {
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(lessons)
-      .where(eq(lessons.moduleId, moduleId));
+      .where(eq(lessons.moduleId, module.id));
 
     const total = countResult?.count ?? 0;
 
@@ -98,6 +123,7 @@ export const lessonService = {
     const result = await db
       .select({
         id: lessons.id,
+        slug: lessons.slug,
         title: lessons.title,
         contentType: lessons.contentType,
         estimatedTimeValue: lessons.estimatedTimeValue,
@@ -108,7 +134,7 @@ export const lessonService = {
         updatedAt: lessons.updatedAt,
       })
       .from(lessons)
-      .where(eq(lessons.moduleId, moduleId))
+      .where(eq(lessons.moduleId, module.id))
       .orderBy(asc(lessons.sortOrder))
       .limit(limit)
       .offset(offset);
@@ -130,17 +156,7 @@ export const lessonService = {
    * Throws 404 if not found.
    */
   async getById(id: string) {
-    const [lesson] = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.id, id))
-      .limit(1);
-
-    if (!lesson) {
-      throw AppError.notFound('Lesson not found');
-    }
-
-    return lesson;
+    return this.resolveIdentifier(id);
   },
 
   /**
@@ -158,19 +174,14 @@ export const lessonService = {
     estimated_time_unit?: 'minutes' | 'hours' | null;
   }) {
     // Check lesson exists
-    const [existing] = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Lesson not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     // Build update payload
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (data.title !== undefined) updateData.title = data.title;
+    if (data.title !== undefined) {
+      updateData.title = data.title;
+      updateData.slug = await generateUniqueSlug(lessons, lessons.id, lessons.slug, data.title, 'lesson', existing.id);
+    }
     if (data.content_type !== undefined) updateData.contentType = data.content_type;
     if (data.content_body !== undefined) updateData.contentBody = data.content_body;
     if (data.video_url !== undefined) updateData.videoUrl = data.video_url;
@@ -182,7 +193,7 @@ export const lessonService = {
     const [updated] = await db
       .update(lessons)
       .set(updateData)
-      .where(eq(lessons.id, id))
+      .where(eq(lessons.id, existing.id))
       .returning();
 
     return updated;
@@ -196,13 +207,13 @@ export const lessonService = {
    */
   async reorder(moduleId: string, orderedIds: string[]) {
     // Verify parent module exists
-    await this.verifyModuleExists(moduleId);
+    const module = await this.verifyModuleExists(moduleId);
 
     // Verify all IDs belong to this module
     const existingLessons = await db
       .select({ id: lessons.id })
       .from(lessons)
-      .where(eq(lessons.moduleId, moduleId));
+      .where(eq(lessons.moduleId, module.id));
 
     const existingIds = new Set(existingLessons.map((l) => l.id));
 
@@ -235,25 +246,16 @@ export const lessonService = {
    * Throws 404 if not found.
    */
   async delete(id: string) {
-    // Check lesson exists
-    const [existing] = await db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Lesson not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     const moduleId = existing.moduleId;
 
     // Delete associated completion and progress records first (FK restrict)
-    await db.delete(lessonCompletions).where(eq(lessonCompletions.lessonId, id));
-    await db.delete(lessonProgress).where(eq(lessonProgress.lessonId, id));
+    await db.delete(lessonCompletions).where(eq(lessonCompletions.lessonId, existing.id));
+    await db.delete(lessonProgress).where(eq(lessonProgress.lessonId, existing.id));
 
     // Delete the lesson
-    await db.delete(lessons).where(eq(lessons.id, id));
+    await db.delete(lessons).where(eq(lessons.id, existing.id));
 
     // Reorder remaining lessons in the module to maintain contiguous sort_order
     const remainingLessons = await db

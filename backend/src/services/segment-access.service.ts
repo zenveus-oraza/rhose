@@ -2,6 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segmentAssignments } from '../db/schema/segment-assignments.js';
 import { segments } from '../db/schema/segments.js';
+import { segmentService } from './segment.service.js';
 
 /**
  * Access verification result returned by verifyAccess.
@@ -26,6 +27,11 @@ export const segmentAccessService = {
    * Expiry calculation: assignedAt + accessDurationDays calendar days (UTC).
    */
   async verifyAccess(userId: string, segmentId: string): Promise<SegmentAccessResult> {
+    const resolvedSegment = await segmentService.resolveIdentifier(segmentId).catch(() => null);
+    if (!resolvedSegment) {
+      return { granted: false, code: 'ACCESS_DENIED' };
+    }
+
     // 1. Check assignment exists
     const [assignment] = await db
       .select({
@@ -37,7 +43,7 @@ export const segmentAccessService = {
       .where(
         and(
           eq(segmentAssignments.userId, userId),
-          eq(segmentAssignments.segmentId, segmentId)
+          eq(segmentAssignments.segmentId, resolvedSegment.id)
         )
       )
       .limit(1);
@@ -50,7 +56,7 @@ export const segmentAccessService = {
     const [segment] = await db
       .select({ status: segments.status })
       .from(segments)
-      .where(eq(segments.id, segmentId))
+      .where(eq(segments.id, resolvedSegment.id))
       .limit(1);
 
     if (!segment || segment.status !== 'active') {

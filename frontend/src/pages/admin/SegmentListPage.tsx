@@ -7,6 +7,7 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import type { Segment } from '@/types/admin';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 
 export function SegmentListPage() {
   const navigate = useNavigate();
@@ -37,14 +38,12 @@ export function SegmentListPage() {
       {
         label: 'Edit',
         icon: <Edit size={16} />,
-        onClick: () => navigate(`/admin/content/segments/${segment.id}/edit`),
+        onClick: () => navigate(`/admin/content/segments/${segment.slug}/edit`),
       },
       {
-        label: 'Reset Password',
-        icon: <KeyRound size={16} />,
-        onClick: () => {
-          // Reset password action placeholder
-        },
+        label: 'View',
+        icon: <BookOpen size={16} />,
+        onClick: () => navigate(`/admin/content/segments/${segment.slug}`),
       },
     ];
 
@@ -263,8 +262,48 @@ export function SegmentListPage() {
                     </td>
                   </tr>
                 ))}
-              </tbody>
-            </table>
+                </tbody>
+                <tbody className="divide-y divide-muted-100">
+                  {segments.map((segment) => (
+                    <tr
+                      key={segment.id}
+                      className="hover:bg-muted-50 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
+                          className="text-left"
+                        >
+                          <p className="text-body font-medium text-navy hover:text-primary transition">
+                            {segment.title}
+                          </p>
+                          {segment.description && (
+                            <p className="text-helper text-muted-500 mt-0.5 line-clamp-1">
+                              {segment.description}
+                            </p>
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge variant={segment.status} />
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell">
+                        <span className="text-helper text-muted-600">
+                          {segment.moduleCount ?? 0}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell">
+                        <span className="text-helper text-muted-600">
+                          {segment.duration ? `${segment.duration} days` : '—'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <ActionMenu items={getRowActions(segment)} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
           </div>
 
           {/* Pagination Controls */}

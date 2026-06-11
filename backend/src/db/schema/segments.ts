@@ -12,6 +12,7 @@ export const segmentStatusEnum = pgEnum('segment_status', ['draft', 'active', 'a
 export const segments = pgTable('segments', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: varchar('title', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
   description: text('description'),
   duration: integer('duration'), // Duration in days, per Figma segment form
   status: segmentStatusEnum('status').notNull().default('draft'),

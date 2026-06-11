@@ -1,10 +1,11 @@
-import { eq, desc, sql, and } from 'drizzle-orm';
+import { eq, desc, sql, and, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segments } from '../db/schema/segments.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
 import type { SegmentStatus } from '../schemas/segment.schemas.js';
 import type { PaginatedResult } from './user-management.service.js';
+import { generateUniqueSlug, isUuid } from './slug.service.js';
 
 /**
  * Valid status transitions for segments.
@@ -20,14 +21,34 @@ const VALID_TRANSITIONS: Record<SegmentStatus, SegmentStatus[]> = {
  * Segment Service — handles all business logic for segment CRUD and status management.
  */
 export const segmentService = {
+  async resolveIdentifier(identifier: string) {
+    const condition = isUuid(identifier)
+      ? or(eq(segments.id, identifier), eq(segments.slug, identifier))
+      : eq(segments.slug, identifier);
+
+    const [segment] = await db
+      .select()
+      .from(segments)
+      .where(condition)
+      .limit(1);
+
+    if (!segment) {
+      throw AppError.notFound('Segment not found');
+    }
+
+    return segment;
+  },
+
   /**
    * Create a new segment with default status "draft".
    */
   async create(data: { title: string; description?: string; duration: number }) {
+    const slug = await generateUniqueSlug(segments, segments.id, segments.slug, data.title, 'segment');
     const [segment] = await db
       .insert(segments)
       .values({
         title: data.title,
+        slug,
         description: data.description ?? null,
         duration: data.duration,
       })
@@ -78,6 +99,7 @@ export const segmentService = {
     const result = await db
       .select({
         id: segments.id,
+        slug: segments.slug,
         title: segments.title,
         description: segments.description,
         duration: segments.duration,
@@ -115,21 +137,13 @@ export const segmentService = {
    * Throws 404 if not found.
    */
   async getById(id: string) {
-    const [segment] = await db
-      .select()
-      .from(segments)
-      .where(eq(segments.id, id))
-      .limit(1);
-
-    if (!segment) {
-      throw AppError.notFound('Segment not found');
-    }
+    const segment = await this.resolveIdentifier(id);
 
     // Get module count for this segment
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(modules)
-      .where(eq(modules.segmentId, id));
+      .where(eq(modules.segmentId, segment.id));
 
     return {
       ...segment,
@@ -143,16 +157,7 @@ export const segmentService = {
    * Throws 404 if not found.
    */
   async update(id: string, data: { title?: string; description?: string; duration?: number; status?: SegmentStatus }) {
-    // Fetch existing segment
-    const [existing] = await db
-      .select()
-      .from(segments)
-      .where(eq(segments.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Segment not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     // Validate status transition if status is being changed
     if (data.status && data.status !== existing.status) {
@@ -179,7 +184,10 @@ export const segmentService = {
 
     // Build update payload
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (data.title !== undefined) updateData.title = data.title;
+    if (data.title !== undefined) {
+      updateData.title = data.title;
+      updateData.slug = await generateUniqueSlug(segments, segments.id, segments.slug, data.title, 'segment', existing.id);
+    }
     if (data.description !== undefined) updateData.description = data.description;
     if (data.duration !== undefined) updateData.duration = data.duration;
     if (data.status !== undefined) updateData.status = data.status;
@@ -187,7 +195,7 @@ export const segmentService = {
     const [updated] = await db
       .update(segments)
       .set(updateData)
-      .where(eq(segments.id, id))
+      .where(eq(segments.id, existing.id))
       .returning();
 
     return updated;
@@ -199,22 +207,13 @@ export const segmentService = {
    * Throws 404 if not found.
    */
   async delete(id: string) {
-    // Check segment exists
-    const [existing] = await db
-      .select()
-      .from(segments)
-      .where(eq(segments.id, id))
-      .limit(1);
-
-    if (!existing) {
-      throw AppError.notFound('Segment not found');
-    }
+    const existing = await this.resolveIdentifier(id);
 
     // Check for child modules
     const [countResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(modules)
-      .where(eq(modules.segmentId, id));
+      .where(eq(modules.segmentId, existing.id));
 
     const moduleCount = countResult?.count ?? 0;
 
@@ -227,6 +226,6 @@ export const segmentService = {
       );
     }
 
-    await db.delete(segments).where(eq(segments.id, id));
+    await db.delete(segments).where(eq(segments.id, existing.id));
   },
 };

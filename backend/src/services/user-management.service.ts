@@ -5,6 +5,7 @@ import { users } from '../db/schema/users.js';
 import { hashPassword } from '../utils/password.js';
 import { AppError } from '../utils/AppError.js';
 import type { UserRole } from '../schemas/user-management.schemas.js';
+import { generateUniqueSlug, isUuid } from './slug.service.js';
 
 /**
  * Shape of a user profile returned by the API.
@@ -12,6 +13,7 @@ import type { UserRole } from '../schemas/user-management.schemas.js';
  */
 export interface UserProfile {
   id: string;
+  slug: string;
   name: string;
   email: string;
   role: string;
@@ -40,6 +42,10 @@ function generateTemporaryPassword(): string {
   return crypto.randomBytes(8).toString('hex');
 }
 
+export async function generateUniqueUserSlug(name: string): Promise<string> {
+  return generateUniqueSlug(users, users.id, users.slug, name, 'user');
+}
+
 /**
  * User Management Service — handles admin-initiated user account operations.
  * Never exposes password hashes in any response.
@@ -65,12 +71,14 @@ export const userManagementService = {
     // Generate and hash temporary password
     const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await hashPassword(temporaryPassword);
+    const slug = await generateUniqueUserSlug(data.name);
 
     // Insert user
     const [createdUser] = await db
       .insert(users)
       .values({
         name: data.name,
+        slug,
         email: data.email,
         passwordHash,
         role: data.role,
@@ -78,6 +86,7 @@ export const userManagementService = {
       })
       .returning({
         id: users.id,
+        slug: users.slug,
         name: users.name,
         email: users.email,
         role: users.role,
@@ -125,6 +134,7 @@ export const userManagementService = {
     const result = await db
       .select({
         id: users.id,
+        slug: users.slug,
         name: users.name,
         email: users.email,
         role: users.role,
@@ -182,6 +192,7 @@ export const userManagementService = {
       .where(eq(users.id, id))
       .returning({
         id: users.id,
+        slug: users.slug,
         name: users.name,
         email: users.email,
         role: users.role,
@@ -194,6 +205,59 @@ export const userManagementService = {
       });
 
     return updated;
+  },
+
+  /**
+   * Get a single user profile by slug. Throws 404 if not found.
+   */
+  async getBySlug(slug: string): Promise<UserProfile> {
+    const [profile] = await db
+      .select({
+        id: users.id,
+        slug: users.slug,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        status: users.status,
+        jobTitle: users.jobTitle,
+        phone: users.phone,
+        profileImage: users.profileImage,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.slug, slug))
+      .limit(1);
+
+    if (profile) {
+      return profile;
+    }
+
+    if (isUuid(slug)) {
+      const [profileById] = await db
+        .select({
+          id: users.id,
+          slug: users.slug,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          status: users.status,
+          jobTitle: users.jobTitle,
+          phone: users.phone,
+          profileImage: users.profileImage,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .where(eq(users.id, slug))
+        .limit(1);
+
+      if (profileById) {
+        return profileById;
+      }
+    }
+
+    throw AppError.notFound('User not found');
   },
 
   /**
@@ -232,6 +296,7 @@ export const userManagementService = {
       .where(eq(users.id, id))
       .returning({
         id: users.id,
+        slug: users.slug,
         name: users.name,
         email: users.email,
         role: users.role,

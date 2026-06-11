@@ -110,7 +110,8 @@ learnerRouter.get(
       // Fetch paginated assignments joined with segment data
       const assignments = await db
         .select({
-          segmentId: segmentAssignments.segmentId,
+          segmentInternalId: segmentAssignments.segmentId,
+          segmentId: segments.slug,
           accessDurationDays: segmentAssignments.accessDurationDays,
           assignedAt: segmentAssignments.assignedAt,
           title: segments.title,
@@ -126,7 +127,7 @@ learnerRouter.get(
       // Build response with progress for each assignment
       const learnerSegments: LearnerSegment[] = await Promise.all(
         assignments.map(async (assignment) => {
-          const progress = await progressService.getSegmentProgress(assignment.segmentId, userId);
+          const progress = await progressService.getSegmentProgress(assignment.segmentInternalId, userId);
           const accessStatus = computeAccessStatus(assignment.assignedAt, assignment.accessDurationDays);
 
           return {
@@ -202,7 +203,7 @@ learnerRouter.get(
       }
 
       sendSuccess(res, {
-        currentLesson: { moduleId: currentLesson.moduleId, lessonId: currentLesson.lessonId },
+       currentLesson: { moduleId: currentLesson.moduleId, lessonId: currentLesson.lessonId },
         segmentComplete: false,
       });
     } catch (error) {
