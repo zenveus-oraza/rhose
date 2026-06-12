@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema/users.js';
-import { userCreationSchema, profileUpdateSchema } from '../schemas/user.schemas.js';
-import { hashPassword } from '../utils/password.js';
+import { userCreationSchema, profileUpdateSchema, passwordChangeSchema } from '../schemas/user.schemas.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
 import { sendSuccess } from '../utils/response.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { AppError } from '../utils/AppError.js';
@@ -101,6 +101,53 @@ router.patch(
         });
 
       sendSuccess(res, updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/users/change-password
+ * Changes the authenticated user's password after verifying the current password.
+ */
+router.post(
+  '/change-password',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req as any).user.userId;
+      const { currentPassword, newPassword } = passwordChangeSchema.parse(req.body);
+
+      const [user] = await db
+        .select({
+          id: users.id,
+          passwordHash: users.passwordHash,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        throw AppError.notFound('User not found');
+      }
+
+      const passwordValid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!passwordValid) {
+        throw AppError.unauthorized('Current password is incorrect');
+      }
+
+      const nextPasswordHash = await hashPassword(newPassword);
+
+      await db
+        .update(users)
+        .set({
+          passwordHash: nextPasswordHash,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      sendSuccess(res, { message: 'Password changed successfully' });
     } catch (error) {
       next(error);
     }

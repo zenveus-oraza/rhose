@@ -13,6 +13,7 @@ import {
   User,
 } from 'lucide-react';
 import ReactPlayer from 'react-player/lazy';
+import { getStoredToken } from '@/services/api';
 import {
   useLessonContent,
   useSegmentDetail,
@@ -21,7 +22,7 @@ import {
   useReportLessonProgress,
 } from '@/hooks/useLearner';
 import { MarkCompleteButton } from '@/components/learner/MarkCompleteButton';
-import type { ModuleSummary } from '@/types/learner';
+import type { ModuleSummary, UploadedAssetMetadata } from '@/types/learner';
 
 // --- Helpers ---
 
@@ -51,14 +52,55 @@ function LessonTypeIcon({ contentType }: { contentType: string }) {
 
 // --- Video Player with progress tracking ---
 
-function VideoContent({ videoUrl, lessonId }: { videoUrl: string; lessonId: string }) {
+function VideoContent({
+  videoUrl,
+  videoAsset,
+  lessonId,
+}: {
+  videoUrl: string;
+  videoAsset: UploadedAssetMetadata | null;
+  lessonId: string;
+}) {
   const reportProgress = useReportLessonProgress();
   const maxProgressRef = useRef(0);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
-  // For uploaded files, build the full URL
-  const resolvedUrl = videoUrl.startsWith('/uploads/')
-    ? `${window.location.origin}${videoUrl}`
-    : videoUrl;
+  useEffect(() => {
+    if (!videoAsset) {
+      setBlobUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const token = getStoredToken();
+    let currentObjectUrl: string | null = null;
+
+    (async () => {
+      try {
+        const response = await fetch(`/api/learner/lessons/${lessonId}/video`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load video');
+        }
+
+        const blob = await response.blob();
+        currentObjectUrl = URL.createObjectURL(blob);
+        setBlobUrl(currentObjectUrl);
+      } catch {
+        setBlobUrl(null);
+      }
+    })();
+
+    return () => {
+      controller.abort();
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+    };
+  }, [lessonId, videoAsset]);
 
   const handleProgress = useCallback(
     (state: { played: number }) => {
@@ -79,28 +121,51 @@ function VideoContent({ videoUrl, lessonId }: { videoUrl: string; lessonId: stri
 
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden shadow-md bg-black">
-      <ReactPlayer
-        url={resolvedUrl}
-        width="100%"
-        height="100%"
-        controls
-        onProgress={handleProgress}
-        onEnded={handleEnded}
-        progressInterval={3000}
-      />
+      {videoAsset ? (
+        <video
+          src={blobUrl ?? undefined}
+          className="h-full w-full"
+          controls
+          playsInline
+          preload="metadata"
+          onTimeUpdate={(event) => {
+            const { currentTime, duration } = event.currentTarget;
+            if (!duration || Number.isNaN(duration) || duration <= 0) return;
+            const percent = Math.round((currentTime / duration) * 100);
+            if (percent > maxProgressRef.current) {
+              maxProgressRef.current = percent;
+              if (percent % 5 === 0 || percent >= 75) {
+                reportProgress.mutate({ lessonId, progressPercent: percent });
+              }
+            }
+          }}
+          onEnded={handleEnded}
+        />
+      ) : (
+        <ReactPlayer
+          url={videoUrl}
+          width="100%"
+          height="100%"
+          controls
+          onProgress={handleProgress}
+          onEnded={handleEnded}
+          progressInterval={3000}
+        />
+      )}
     </div>
   );
 }
 
 // --- Slides Viewer with progress tracking ---
 
-function getSlideViewerUrl(slidesUrl: string): { url: string; type: 'pdf' | 'pptx' | 'embed' } {
-  if (slidesUrl.startsWith('/uploads/')) {
-    const ext = slidesUrl.split('.').pop()?.toLowerCase();
-    if (ext === 'pdf') {
+function getSlideViewerUrl(
+  slidesUrl: string,
+  slidesAsset: UploadedAssetMetadata | null
+): { url: string; type: 'pdf' | 'pptx' | 'embed' } {
+  if (slidesAsset) {
+    if (slidesAsset.mimeType === 'application/pdf' || slidesAsset.originalName.toLowerCase().endsWith('.pdf')) {
       return { url: slidesUrl, type: 'pdf' };
     }
-    // PPTX/PPT files — served directly, rendered with <object> tag
     return { url: slidesUrl, type: 'pptx' };
   }
   // External URL (Google Slides, etc.)
@@ -109,10 +174,12 @@ function getSlideViewerUrl(slidesUrl: string): { url: string; type: 'pdf' | 'ppt
 
 function SlidesContent({
   slidesUrl,
+  slidesAsset,
   totalSlides,
   lessonId,
 }: {
   slidesUrl: string;
+  slidesAsset: UploadedAssetMetadata | null;
   totalSlides: number;
   lessonId: string;
 }) {
@@ -140,7 +207,7 @@ function SlidesContent({
   };
 
   const slideThumbnails = Array.from({ length: totalSlides }, (_, i) => i + 1);
-  const viewer = getSlideViewerUrl(slidesUrl);
+  const viewer = getSlideViewerUrl(slidesUrl, slidesAsset);
 
   return (
     <div>
@@ -528,10 +595,11 @@ export function LessonPage() {
           {/* Content body */}
           <div className="mb-8">
             {lesson?.contentType?.toLowerCase() === 'video' && lesson.videoUrl ? (
-              <VideoContent videoUrl={lesson.videoUrl} lessonId={lessonId} />
+              <VideoContent videoUrl={lesson.videoUrl} videoAsset={lesson.videoAsset} lessonId={lessonId} />
             ) : lesson?.contentType?.toLowerCase() === 'slides' && lesson.slidesUrl ? (
               <SlidesContent
                 slidesUrl={lesson.slidesUrl}
+                slidesAsset={lesson.slidesAsset}
                 totalSlides={lesson.totalSlides ?? 1}
                 lessonId={lessonId}
               />

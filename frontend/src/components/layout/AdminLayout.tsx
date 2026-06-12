@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
   Settings,
+  UserCircle,
   Menu,
   X,
 } from 'lucide-react';
@@ -178,6 +179,19 @@ export function AdminLayout() {
 
         {/* Sidebar footer */}
         <div className="px-2 py-2 space-y-1">
+          <NavLink
+            to="/admin/profile"
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-lg px-2 py-2 text-body transition-colors ${
+                isActive
+                  ? 'bg-primary text-white font-medium'
+                  : 'text-muted-600 hover:bg-muted-100 hover:text-navy'
+              }`
+            }
+          >
+            <UserCircle size={20} />
+            <span>Profile</span>
+          </NavLink>
           <NavLink
             to="/admin/settings"
             className={({ isActive }) =>

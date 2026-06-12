@@ -438,14 +438,14 @@ export function AdminDashboard() {
         {/* Recent Activity */}
         <div className="lg:col-span-1">
           <div className="rounded-2xl border border-muted-200 bg-white p-5 shadow-sm h-fit">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-heading-card text-navy">Recent Activity</h2>
-              <div className="flex items-center gap-2">
-                <Filter size={16} className="text-muted-400" />
+              <div className="flex w-full items-center gap-2 sm:w-auto sm:max-w-[220px]">
+                <Filter size={16} className="shrink-0 text-muted-400" />
                 <select
                   value={activityFilter}
                   onChange={(e) => setActivityFilter(e.target.value)}
-                  className="rounded-lg border border-muted-200 bg-white px-3 py-1.5 text-helper text-muted-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="min-w-0 flex-1 rounded-lg border border-muted-200 bg-white px-3 py-1.5 text-helper text-muted-600 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:flex-none sm:w-[190px]"
                   aria-label="Filter activity"
                 >
                   <option value="all">All</option>

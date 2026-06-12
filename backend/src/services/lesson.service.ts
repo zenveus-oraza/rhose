@@ -1,12 +1,14 @@
 import { eq, asc, sql, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { lessons } from '../db/schema/lessons.js';
+import type { UploadedLessonAssetMetadata } from '../db/schema/lessons.js';
 import { lessonCompletions } from '../db/schema/lesson-completions.js';
 import { lessonProgress } from '../db/schema/lesson-progress.js';
 import { modules } from '../db/schema/modules.js';
 import { AppError } from '../utils/AppError.js';
 import type { PaginatedResult } from './user-management.service.js';
 import { generateUniqueSlug, isUuid } from './slug.service.js';
+import { storageService } from './storage.service.js';
 
 /**
  * Lesson Service — handles all business logic for lesson CRUD and sort order management.
@@ -61,7 +63,9 @@ export const lessonService = {
     content_type: 'text' | 'video' | 'slides';
     content_body?: string;
     video_url?: string;
+    video_asset?: UploadedLessonAssetMetadata | null;
     slides_url?: string;
+    slides_asset?: UploadedLessonAssetMetadata | null;
     total_slides?: number | null;
     estimated_time_value?: number | null;
     estimated_time_unit?: 'minutes' | 'hours' | null;
@@ -87,7 +91,9 @@ export const lessonService = {
         contentType: data.content_type,
         contentBody: data.content_body ?? null,
         videoUrl: data.video_url ?? null,
+        videoAsset: data.video_asset ?? null,
         slidesUrl: data.slides_url ?? null,
+        slidesAsset: data.slides_asset ?? null,
         totalSlides: data.total_slides ?? null,
         estimatedTimeValue: data.estimated_time_value ?? null,
         estimatedTimeUnit: data.estimated_time_unit ?? null,
@@ -166,9 +172,11 @@ export const lessonService = {
   async update(id: string, data: {
     title?: string;
     content_type?: 'text' | 'video' | 'slides';
-    content_body?: string;
-    video_url?: string;
-    slides_url?: string;
+    content_body?: string | null;
+    video_url?: string | null;
+    video_asset?: UploadedLessonAssetMetadata | null;
+    slides_url?: string | null;
+    slides_asset?: UploadedLessonAssetMetadata | null;
     total_slides?: number | null;
     estimated_time_value?: number | null;
     estimated_time_unit?: 'minutes' | 'hours' | null;
@@ -185,7 +193,9 @@ export const lessonService = {
     if (data.content_type !== undefined) updateData.contentType = data.content_type;
     if (data.content_body !== undefined) updateData.contentBody = data.content_body;
     if (data.video_url !== undefined) updateData.videoUrl = data.video_url;
+    if (data.video_asset !== undefined) updateData.videoAsset = data.video_asset;
     if (data.slides_url !== undefined) updateData.slidesUrl = data.slides_url;
+    if (data.slides_asset !== undefined) updateData.slidesAsset = data.slides_asset;
     if (data.total_slides !== undefined) updateData.totalSlides = data.total_slides;
     if (data.estimated_time_value !== undefined) updateData.estimatedTimeValue = data.estimated_time_value;
     if (data.estimated_time_unit !== undefined) updateData.estimatedTimeUnit = data.estimated_time_unit;
@@ -195,6 +205,19 @@ export const lessonService = {
       .set(updateData)
       .where(eq(lessons.id, existing.id))
       .returning();
+
+    const staleKeys = [
+      existing.videoAsset?.key && existing.videoAsset.key !== updated.videoAsset?.key ? existing.videoAsset.key : null,
+      existing.slidesAsset?.key && existing.slidesAsset.key !== updated.slidesAsset?.key ? existing.slidesAsset.key : null,
+    ].filter((key): key is string => Boolean(key));
+
+    for (const key of staleKeys) {
+      try {
+        await storageService.deleteFile(key);
+      } catch {
+        // Keep the content update successful even if stale object cleanup fails.
+      }
+    }
 
     return updated;
   },
@@ -249,6 +272,10 @@ export const lessonService = {
     const existing = await this.resolveIdentifier(id);
 
     const moduleId = existing.moduleId;
+    const assetKeys = [
+      existing.videoAsset?.key,
+      existing.slidesAsset?.key,
+    ].filter((key): key is string => Boolean(key));
 
     // Delete associated completion and progress records first (FK restrict)
     await db.delete(lessonCompletions).where(eq(lessonCompletions.lessonId, existing.id));
@@ -269,6 +296,14 @@ export const lessonService = {
         .update(lessons)
         .set({ sortOrder: i + 1 })
         .where(eq(lessons.id, remainingLessons[i].id));
+    }
+
+    for (const key of assetKeys) {
+      try {
+        await storageService.deleteFile(key);
+      } catch {
+        // Lesson deletion should remain successful even if object cleanup lags behind.
+      }
     }
   },
 };

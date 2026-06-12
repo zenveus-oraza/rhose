@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AuthLayout } from '@/components/layout/AuthLayout';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { resetPassword } from '@/services/auth.service';
 
 type PasswordStrength = 'weak' | 'medium' | 'strong';
@@ -173,9 +174,8 @@ export function ResetPasswordPage() {
             >
               New password
             </label>
-            <input
+            <PasswordInput
               id="reset-new-password"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => {
@@ -234,9 +234,8 @@ export function ResetPasswordPage() {
             >
               Confirm password
             </label>
-            <input
+            <PasswordInput
               id="reset-confirm-password"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => {

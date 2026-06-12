@@ -70,6 +70,13 @@ export interface ReorderInput {
 
 export type LessonContentType = 'text' | 'video' | 'slides';
 
+export interface UploadedAssetMetadata {
+  key: string;
+  originalName: string;
+  size: number;
+  mimeType: string;
+}
+
 export interface Lesson {
   id: string;
   slug: string;
@@ -77,7 +84,9 @@ export interface Lesson {
   contentType: LessonContentType;
   contentBody: string | null;
   videoUrl: string | null;
+  videoAsset: UploadedAssetMetadata | null;
   slidesUrl: string | null;
+  slidesAsset: UploadedAssetMetadata | null;
   totalSlides: number | null;
   estimatedTimeValue: number | null;
   estimatedTimeUnit: 'minutes' | 'hours' | null;
@@ -92,7 +101,9 @@ export interface CreateLessonInput {
   content_type: LessonContentType;
   content_body?: string;
   video_url?: string;
+  video_asset?: UploadedAssetMetadata | null;
   slides_url?: string;
+  slides_asset?: UploadedAssetMetadata | null;
   total_slides?: number;
   estimated_time_value?: number;
   estimated_time_unit?: 'minutes' | 'hours';
@@ -101,12 +112,14 @@ export interface CreateLessonInput {
 export interface UpdateLessonInput {
   title?: string;
   content_type?: LessonContentType;
-  content_body?: string;
-  video_url?: string;
-  slides_url?: string;
-  total_slides?: number;
-  estimated_time_value?: number;
-  estimated_time_unit?: 'minutes' | 'hours';
+  content_body?: string | null;
+  video_url?: string | null;
+  video_asset?: UploadedAssetMetadata | null;
+  slides_url?: string | null;
+  slides_asset?: UploadedAssetMetadata | null;
+  total_slides?: number | null;
+  estimated_time_value?: number | null;
+  estimated_time_unit?: 'minutes' | 'hours' | null;
 }
 
 // --- User Management Types ---

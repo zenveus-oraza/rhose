@@ -235,6 +235,7 @@ export async function listUserAssignments(userId: string, params?: { page?: numb
 
 export interface UploadResponse {
   url: string;
+  key: string;
   filename: string;
   originalName: string;
   size: number;

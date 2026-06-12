@@ -45,12 +45,17 @@ export async function apiClient<T>(
     headers,
   });
 
+  const body = await response.json().catch(() => null);
+
   if (response.status === 401) {
     clearStoredToken();
-    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+    throw new ApiError(
+      401,
+      body?.error?.code ?? 'UNAUTHORIZED',
+      body?.error?.message ?? 'Session expired',
+      body?.error?.details
+    );
   }
-
-  const body = await response.json();
 
   if (!response.ok) {
     throw new ApiError(
@@ -85,12 +90,17 @@ export async function apiUpload<T>(
     body: formData,
   });
 
+  const body = await response.json().catch(() => null);
+
   if (response.status === 401) {
     clearStoredToken();
-    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+    throw new ApiError(
+      401,
+      body?.error?.code ?? 'UNAUTHORIZED',
+      body?.error?.message ?? 'Session expired',
+      body?.error?.details
+    );
   }
-
-  const body = await response.json();
 
   if (!response.ok) {
     throw new ApiError(

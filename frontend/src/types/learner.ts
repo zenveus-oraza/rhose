@@ -70,13 +70,22 @@ export interface ModuleLessonsResponse {
 
 // --- Lesson Content ---
 
+export interface UploadedAssetMetadata {
+  key: string;
+  originalName: string;
+  size: number;
+  mimeType: string;
+}
+
 export interface LessonContent {
   id: string;
   title: string;
   contentType: string;
   contentBody: string | null;
   videoUrl: string | null;
+  videoAsset: UploadedAssetMetadata | null;
   slidesUrl: string | null;
+  slidesAsset: UploadedAssetMetadata | null;
   totalSlides: number | null;
 }
 

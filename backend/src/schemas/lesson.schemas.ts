@@ -6,6 +6,13 @@ import { z } from 'zod';
 export const estimatedTimeUnitValues = ['minutes', 'hours'] as const;
 export type EstimatedTimeUnit = (typeof estimatedTimeUnitValues)[number];
 
+const uploadedAssetSchema = z.object({
+  key: z.string().min(1, 'asset key is required'),
+  originalName: z.string().min(1, 'asset originalName is required'),
+  size: z.number().int().nonnegative('asset size must be non-negative'),
+  mimeType: z.string().min(1, 'asset mimeType is required'),
+});
+
 /**
  * Schema for creating a lesson.
  * Uses discriminated union on content_type to enforce:
@@ -19,8 +26,10 @@ export const createLessonSchema = z.discriminatedUnion('content_type', [
     title: z.string().min(1, 'Title is required').max(255),
     content_type: z.literal('text'),
     content_body: z.string().min(1, 'content_body is required for text lessons'),
-    video_url: z.string().optional(),
-    slides_url: z.string().optional(),
+    video_url: z.string().optional().nullable(),
+    video_asset: uploadedAssetSchema.optional().nullable(),
+    slides_url: z.string().optional().nullable(),
+    slides_asset: uploadedAssetSchema.optional().nullable(),
     total_slides: z.number().int().positive().optional().nullable(),
     estimated_time_value: z.number({ invalid_type_error: 'estimated_time_value must be a number' })
       .int('estimated_time_value must be an integer')
@@ -37,8 +46,10 @@ export const createLessonSchema = z.discriminatedUnion('content_type', [
     title: z.string().min(1, 'Title is required').max(255),
     content_type: z.literal('video'),
     video_url: z.string().min(1, 'video_url is required for video lessons'),
-    content_body: z.string().optional(),
-    slides_url: z.string().optional(),
+    video_asset: uploadedAssetSchema.optional().nullable(),
+    content_body: z.string().optional().nullable(),
+    slides_url: z.string().optional().nullable(),
+    slides_asset: uploadedAssetSchema.optional().nullable(),
     total_slides: z.number().int().positive().optional().nullable(),
     estimated_time_value: z.number({ invalid_type_error: 'estimated_time_value must be a number' })
       .int('estimated_time_value must be an integer')
@@ -55,11 +66,13 @@ export const createLessonSchema = z.discriminatedUnion('content_type', [
     title: z.string().min(1, 'Title is required').max(255),
     content_type: z.literal('slides'),
     slides_url: z.string().min(1, 'slides_url is required for slides lessons'),
+    slides_asset: uploadedAssetSchema.optional().nullable(),
     total_slides: z.number({ invalid_type_error: 'total_slides must be a number' })
       .int('total_slides must be an integer')
       .positive('total_slides must be a positive integer'),
-    content_body: z.string().optional(),
-    video_url: z.string().optional(),
+    content_body: z.string().optional().nullable(),
+    video_url: z.string().optional().nullable(),
+    video_asset: uploadedAssetSchema.optional().nullable(),
     estimated_time_value: z.number({ invalid_type_error: 'estimated_time_value must be a number' })
       .int('estimated_time_value must be an integer')
       .positive('estimated_time_value must be a positive integer')
@@ -82,9 +95,11 @@ export const createLessonSchema = z.discriminatedUnion('content_type', [
 export const updateLessonSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255).optional(),
   content_type: z.enum(['text', 'video', 'slides']).optional(),
-  content_body: z.string().min(1, 'content_body is required for text lessons').optional(),
-  video_url: z.string().min(1, 'video_url is required').optional(),
-  slides_url: z.string().min(1, 'slides_url is required').optional(),
+  content_body: z.string().min(1, 'content_body is required for text lessons').optional().nullable(),
+  video_url: z.string().min(1, 'video_url is required').optional().nullable(),
+  video_asset: uploadedAssetSchema.optional().nullable(),
+  slides_url: z.string().min(1, 'slides_url is required').optional().nullable(),
+  slides_asset: uploadedAssetSchema.optional().nullable(),
   total_slides: z.number().int().positive().optional().nullable(),
   estimated_time_value: z.number({ invalid_type_error: 'estimated_time_value must be a number' })
     .int('estimated_time_value must be an integer')

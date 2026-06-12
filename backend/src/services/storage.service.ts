@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { env } from '../config/env.js';
 
 interface UploadFileInput {
@@ -40,11 +40,30 @@ export const storageService = {
       Key: normalizedKey,
       Body: body,
       ContentType: contentType,
+      ContentDisposition: 'inline',
     }));
 
     return {
       key: normalizedKey,
       url: buildPublicUrl(normalizedKey),
     };
+  },
+
+  async deleteFile(key: string) {
+    const normalizedKey = trimSlashes(key);
+    if (!normalizedKey) return;
+
+    await s3Client.send(new DeleteObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: normalizedKey,
+    }));
+  },
+
+  async getFile(key: string) {
+    const normalizedKey = trimSlashes(key);
+    return s3Client.send(new GetObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: normalizedKey,
+    }));
   },
 };

@@ -65,7 +65,7 @@ export function MarkCompleteButton({
           disabled={isPending}
           className={cn(
             'inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white transition-colors',
-            'bg-coral hover:bg-coral-500 disabled:opacity-70'
+            'bg-secondary hover:bg-secondary/90 disabled:opacity-70'
           )}
         >
           {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -84,7 +84,7 @@ export function MarkCompleteButton({
         'inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white transition-colors',
         disabled
           ? 'bg-muted-300 cursor-not-allowed'
-          : 'bg-coral hover:bg-coral-500'
+          : 'bg-secondary hover:bg-secondary/90'
       )}
     >
       Mark as Complete

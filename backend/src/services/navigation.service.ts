@@ -1,6 +1,7 @@
 import { eq, and, asc, inArray, lt, or } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { segments, modules, lessons, lessonCompletions } from '../db/schema/index.js';
+import type { UploadedLessonAssetMetadata } from '../db/schema/lessons.js';
 import { isUuid } from './slug.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,7 +41,9 @@ export interface LessonContent {
   contentType: string;
   contentBody: string | null;
   videoUrl: string | null;
+  videoAsset: UploadedLessonAssetMetadata | null;
   slidesUrl: string | null;
+  slidesAsset: UploadedLessonAssetMetadata | null;
   totalSlides: number | null;
 }
 
@@ -279,7 +282,9 @@ export const navigationService = {
         contentType: lessons.contentType,
         contentBody: lessons.contentBody,
         videoUrl: lessons.videoUrl,
+        videoAsset: lessons.videoAsset,
         slidesUrl: lessons.slidesUrl,
+        slidesAsset: lessons.slidesAsset,
         totalSlides: lessons.totalSlides,
       })
       .from(lessons)

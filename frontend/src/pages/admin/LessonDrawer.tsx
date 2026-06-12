@@ -4,7 +4,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { useCreateLesson, useUpdateLesson, useLesson } from '@/hooks/useAdminApi';
 import { uploadSlides, uploadVideo } from '@/services/admin.service';
-import type { Lesson, LessonContentType } from '@/types/admin';
+import type { Lesson, LessonContentType, UploadedAssetMetadata } from '@/types/admin';
 
 interface LessonDrawerProps {
   open: boolean;
@@ -19,9 +19,9 @@ interface LessonFormData {
   contentBody: string;
   videoUrl: string;
   videoMode: 'link' | 'upload';
-  videoFileName: string;
+  videoAsset: UploadedAssetMetadata | null;
   slidesUrl: string;
-  slidesFileName: string;
+  slidesAsset: UploadedAssetMetadata | null;
   totalSlides: string;
   estimatedTime: string; // hh:mm format
 }
@@ -51,6 +51,16 @@ function hhmmToMinutes(hhmm: string): number | null {
   return hours * 60 + minutes;
 }
 
+function formatFileSize(size: number): string {
+  if (size >= 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+  if (size >= 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${size} B`;
+}
+
 export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerProps) {
   const isEditing = !!lesson;
   const createLesson = useCreateLesson();
@@ -67,9 +77,9 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
     contentBody: '',
     videoUrl: '',
     videoMode: 'link',
-    videoFileName: '',
+    videoAsset: null,
     slidesUrl: '',
-    slidesFileName: '',
+    slidesAsset: null,
     totalSlides: '',
     estimatedTime: '',
   });
@@ -96,10 +106,10 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
         contentType: lessonData.contentType,
         contentBody: lessonData.contentBody || '',
         videoUrl: lessonData.videoUrl || '',
-        videoMode: lessonData.videoUrl?.startsWith('/uploads/') ? 'upload' : 'link',
-        videoFileName: lessonData.videoUrl?.startsWith('/uploads/') ? lessonData.videoUrl.split('/').pop() || '' : '',
+        videoMode: lessonData.videoAsset ? 'upload' : 'link',
+        videoAsset: lessonData.videoAsset ?? null,
         slidesUrl: lessonData.slidesUrl || '',
-        slidesFileName: lessonData.slidesUrl ? lessonData.slidesUrl.split('/').pop() || '' : '',
+        slidesAsset: lessonData.slidesAsset ?? null,
         totalSlides: lessonData.totalSlides ? String(lessonData.totalSlides) : '',
         estimatedTime: timeDisplay,
       });
@@ -110,9 +120,9 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
         contentBody: '',
         videoUrl: '',
         videoMode: 'link',
-        videoFileName: '',
+        videoAsset: null,
         slidesUrl: '',
-        slidesFileName: '',
+        slidesAsset: null,
         totalSlides: '',
         estimatedTime: '',
       });
@@ -199,7 +209,16 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
 
     if (formData.contentType === 'text') {
       data.content_body = formData.contentBody.trim();
+      data.video_url = null;
+      data.video_asset = null;
+      data.slides_url = null;
+      data.slides_asset = null;
+      data.total_slides = null;
     } else if (formData.contentType === 'video') {
+      data.content_body = null;
+      data.slides_url = null;
+      data.slides_asset = null;
+      data.total_slides = null;
       if (formData.videoMode === 'upload') {
         // Upload file first if a new file was selected
         if (videoFile) {
@@ -207,6 +226,12 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
             setIsUploading(true);
             const uploadResult = await uploadVideo(videoFile);
             data.video_url = uploadResult.url;
+            data.video_asset = {
+              key: uploadResult.key,
+              originalName: uploadResult.originalName,
+              size: uploadResult.size,
+              mimeType: uploadResult.mimeType,
+            };
           } catch (err: any) {
             setFieldErrors({ videoFile: err.message || 'Video upload failed' });
             setIsUploading(false);
@@ -217,17 +242,28 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
         } else {
           // Keep existing URL when editing without re-uploading
           data.video_url = formData.videoUrl;
+          data.video_asset = formData.videoAsset;
         }
       } else {
         data.video_url = formData.videoUrl.trim();
+        data.video_asset = null;
       }
     } else if (formData.contentType === 'slides') {
+      data.content_body = null;
+      data.video_url = null;
+      data.video_asset = null;
       // Upload file first if a new file was selected
       if (slidesFile) {
         try {
           setIsUploading(true);
           const uploadResult = await uploadSlides(slidesFile);
           data.slides_url = uploadResult.url;
+          data.slides_asset = {
+            key: uploadResult.key,
+            originalName: uploadResult.originalName,
+            size: uploadResult.size,
+            mimeType: uploadResult.mimeType,
+          };
         } catch (err: any) {
           setFieldErrors({ slidesFile: err.message || 'Upload failed' });
           setIsUploading(false);
@@ -238,6 +274,7 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
       } else {
         // Keep existing URL when editing without re-uploading
         data.slides_url = formData.slidesUrl;
+        data.slides_asset = formData.slidesAsset;
       }
       data.total_slides = parseInt(formData.totalSlides, 10);
     }
@@ -438,19 +475,28 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
                       const file = e.target.files?.[0] ?? null;
                       setVideoFile(file);
                       if (file) {
-                        setFormData({ ...formData, videoFileName: file.name });
+                        setFormData((current) => ({ ...current, videoAsset: null }));
                         if (fieldErrors.videoFile) setFieldErrors((prev) => ({ ...prev, videoFile: undefined }));
                       }
                     }}
                   />
-                  {videoFile || formData.videoFileName ? (
+                  {videoFile || formData.videoAsset ? (
                     <div className="flex items-center justify-center gap-2">
                       <FileCheck className="h-5 w-5 text-teal" />
-                      <span className="text-sm text-navy font-medium truncate">
-                        {videoFile?.name || formData.videoFileName}
-                      </span>
+                      <div className="min-w-0 text-left">
+                        <p className="truncate text-sm font-medium text-navy">
+                          {videoFile?.name || formData.videoAsset?.originalName}
+                        </p>
+                        <p className="text-xs text-muted-400">
+                          {videoFile
+                            ? formatFileSize(videoFile.size)
+                            : formData.videoAsset
+                              ? `${formatFileSize(formData.videoAsset.size)} • uploaded`
+                              : ''}
+                        </p>
+                      </div>
                       <span className="text-xs text-muted-400">
-                        {videoFile ? `(${(videoFile.size / 1024 / 1024).toFixed(1)} MB)` : '(uploaded)'}
+                        {videoFile ? '(selected)' : '(replaceable)'}
                       </span>
                     </div>
                   ) : (
@@ -492,19 +538,28 @@ export function LessonDrawer({ open, onClose, moduleId, lesson }: LessonDrawerPr
                     const file = e.target.files?.[0] ?? null;
                     setSlidesFile(file);
                     if (file) {
-                      setFormData({ ...formData, slidesFileName: file.name });
+                      setFormData((current) => ({ ...current, slidesAsset: null }));
                       if (fieldErrors.slidesFile) setFieldErrors((prev) => ({ ...prev, slidesFile: undefined }));
                     }
                   }}
                 />
-                {slidesFile || formData.slidesFileName ? (
+                {slidesFile || formData.slidesAsset ? (
                   <div className="flex items-center justify-center gap-2">
                     <FileCheck className="h-5 w-5 text-teal" />
-                    <span className="text-sm text-navy font-medium truncate">
-                      {slidesFile?.name || formData.slidesFileName}
-                    </span>
+                    <div className="min-w-0 text-left">
+                      <p className="truncate text-sm font-medium text-navy">
+                        {slidesFile?.name || formData.slidesAsset?.originalName}
+                      </p>
+                      <p className="text-xs text-muted-400">
+                        {slidesFile
+                          ? formatFileSize(slidesFile.size)
+                          : formData.slidesAsset
+                            ? `${formatFileSize(formData.slidesAsset.size)} • uploaded`
+                            : ''}
+                      </p>
+                    </div>
                     <span className="text-xs text-muted-400">
-                      {slidesFile ? `(${(slidesFile.size / 1024 / 1024).toFixed(1)} MB)` : '(uploaded)'}
+                      {slidesFile ? '(selected)' : '(replaceable)'}
                     </span>
                   </div>
                 ) : (

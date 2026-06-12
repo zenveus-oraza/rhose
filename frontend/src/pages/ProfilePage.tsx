@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiClient, ApiError } from '@/services/api';
 import { uploadImage } from '@/services/upload.service';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { ProfileImageUpload } from '@/components/ui/ProfileImageUpload';
 import { useToast } from '@/components/ui/Toast';
 
@@ -421,9 +422,8 @@ export function ProfilePage() {
                   <label htmlFor="current-password" className="block text-helper font-medium text-navy mb-1">
                     Current Password
                   </label>
-                  <input
+                  <PasswordInput
                     id="current-password"
-                    type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     className="w-full rounded-lg border border-muted-300 px-4 py-2.5 text-body text-navy placeholder:text-muted-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
@@ -439,9 +439,8 @@ export function ProfilePage() {
                   <label htmlFor="new-password" className="block text-helper font-medium text-navy mb-1">
                     New Password
                   </label>
-                  <input
+                  <PasswordInput
                     id="new-password"
-                    type="password"
                     value={newPassword}
                     onChange={(e) => {
                       setNewPassword(e.target.value);
@@ -464,9 +463,8 @@ export function ProfilePage() {
                   <label htmlFor="confirm-password" className="block text-helper font-medium text-navy mb-1">
                     Confirm New Password
                   </label>
-                  <input
+                  <PasswordInput
                     id="confirm-password"
-                    type="password"
                     value={confirmPassword}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value);

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, BookOpen, Search, Archive, Edit, FileText } from 'lucide-react';
+import { Search, Archive, Edit, FileText, BookOpen } from 'lucide-react';
 import { useSegments, useUpdateSegment } from '@/hooks/useAdminApi';
 import { ActionMenu, type ActionMenuItem } from '@/components/ui/ActionMenu';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { LoadingIndicator } from '@/components/ui/LoadingIndicator';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import type { Segment } from '@/types/admin';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 
 export function SegmentListPage() {
   const navigate = useNavigate();
@@ -50,7 +49,7 @@ export function SegmentListPage() {
     // Show Archive Segment action for non-archived segments
     if (segment.status !== 'archived') {
       actions.push({
-        label: 'Archive Segment',
+        label: 'Archive',
         icon: <Archive size={16} />,
         onClick: () => setArchiveTarget(segment),
         variant: 'danger',
@@ -58,15 +57,6 @@ export function SegmentListPage() {
     }
 
     return actions;
-  }
-
-  function formatDuration(days: number | null): string {
-    if (!days) return '—';
-    if (days >= 7) {
-      const weeks = Math.round(days / 7);
-      return `${weeks} Week${weeks !== 1 ? 's' : ''}`;
-    }
-    return `${days} Day${days !== 1 ? 's' : ''}`;
   }
 
   function formatDate(dateStr: string): string {
@@ -194,7 +184,7 @@ export function SegmentListPage() {
                   <th className="px-6 py-3 text-left text-helper font-medium text-muted-600">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-helper font-medium text-muted-600 hidden md:table-cell">
+                  <th className="px-6 py-3 text-left text-helper font-medium text-muted-600">
                     Created on
                   </th>
                   <th className="px-6 py-3 text-right text-helper font-medium text-muted-600">
@@ -211,27 +201,13 @@ export function SegmentListPage() {
                     {/* Segment Name + Metadata */}
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => navigate(`/admin/content/segments/${segment.id}`)}
+                        onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
                         className="text-left"
                       >
                         <p className="text-body font-semibold text-navy">
                           {segment.title}
                         </p>
                       </button>
-                      <div className="mt-1 flex items-center gap-4 text-helper text-muted-500">
-                        <span className="inline-flex items-center gap-1">
-                          <Calendar size={14} className="text-muted-400" />
-                          {formatDuration(segment.duration)}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <BookOpen size={14} className="text-muted-400" />
-                          {segment.moduleCount ?? 0} Module{(segment.moduleCount ?? 0) !== 1 ? 's' : ''}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Users size={14} className="text-muted-400" />
-                          {segment.assignedUserCount ?? 0} Users Assigned
-                        </span>
-                      </div>
                     </td>
 
                     {/* Status Badge */}
@@ -250,7 +226,7 @@ export function SegmentListPage() {
                     </td>
 
                     {/* Created Date */}
-                    <td className="px-6 py-4 hidden md:table-cell">
+                    <td className="px-6 py-4">
                       <span className="text-helper text-muted-600">
                         {formatDate(segment.createdAt)}
                       </span>
@@ -262,47 +238,7 @@ export function SegmentListPage() {
                     </td>
                   </tr>
                 ))}
-                </tbody>
-                <tbody className="divide-y divide-muted-100">
-                  {segments.map((segment) => (
-                    <tr
-                      key={segment.id}
-                      className="hover:bg-muted-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => navigate(`/admin/content/segments/${segment.slug}`)}
-                          className="text-left"
-                        >
-                          <p className="text-body font-medium text-navy hover:text-primary transition">
-                            {segment.title}
-                          </p>
-                          {segment.description && (
-                            <p className="text-helper text-muted-500 mt-0.5 line-clamp-1">
-                              {segment.description}
-                            </p>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge variant={segment.status} />
-                      </td>
-                      <td className="px-6 py-4 hidden md:table-cell">
-                        <span className="text-helper text-muted-600">
-                          {segment.moduleCount ?? 0}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 hidden md:table-cell">
-                        <span className="text-helper text-muted-600">
-                          {segment.duration ? `${segment.duration} days` : '—'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <ActionMenu items={getRowActions(segment)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+              </tbody>
               </table>
           </div>
 

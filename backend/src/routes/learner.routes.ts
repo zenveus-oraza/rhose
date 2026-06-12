@@ -12,6 +12,8 @@ import { navigationService } from '../services/navigation.service.js';
 import { completionService } from '../services/completion.service.js';
 import type { CompletionResult } from '../services/completion.service.js';
 import { activityService } from '../services/activity.service.js';
+import { segmentAccessService } from '../services/segment-access.service.js';
+import { storageService } from '../services/storage.service.js';
 import { reportProgressSchema } from '../schemas/lesson.schemas.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import quizLearnerRouter from './quiz-learner.routes.js';
@@ -243,6 +245,83 @@ learnerRouter.get(
  * Returns 403 if the module is locked. Returns 404 if the lesson does not exist.
  */
 learnerRouter.get(
+  '/lessons/:lessonId/video',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonIdentifier = req.params.lessonId as string;
+      const userId = req.user!.userId;
+
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      const [lessonRecord] = await db
+        .select({
+          lessonId: lessons.id,
+          moduleId: lessons.moduleId,
+          videoUrl: lessons.videoUrl,
+          videoAsset: lessons.videoAsset,
+        })
+        .from(lessons)
+        .where(eq(lessons.id, resolvedLesson.id))
+        .limit(1);
+
+      if (!lessonRecord?.videoAsset?.key || !lessonRecord.videoUrl) {
+        sendError(res, 404, 'NOT_FOUND', 'Video not found');
+        return;
+      }
+
+      const [moduleRecord] = await db
+        .select({
+          segmentId: modules.segmentId,
+          moduleId: modules.id,
+          moduleSlug: modules.slug,
+        })
+        .from(modules)
+        .where(eq(modules.id, lessonRecord.moduleId))
+        .limit(1);
+
+      if (!moduleRecord) {
+        sendError(res, 404, 'NOT_FOUND', 'Module not found');
+        return;
+      }
+
+      const access = await segmentAccessService.verifyAccess(userId, moduleRecord.segmentId);
+      if (!access.granted) {
+        sendError(res, 403, access.code, access.code);
+        return;
+      }
+
+      const segmentDetail = await navigationService.getSegmentDetail(moduleRecord.segmentId, userId);
+      const targetModule = segmentDetail?.modules.find((module) => module.id === moduleRecord.moduleSlug);
+      if (targetModule && !targetModule.accessible) {
+        sendError(res, 403, 'MODULE_LOCKED', 'Complete the previous module to access this one.');
+        return;
+      }
+
+      const object = await storageService.getFile(lessonRecord.videoAsset.key);
+      if (!object.Body) {
+        sendError(res, 404, 'NOT_FOUND', 'Video not found');
+        return;
+      }
+
+      res.setHeader('Content-Type', lessonRecord.videoAsset.mimeType || 'video/mp4');
+      res.setHeader('Content-Length', String(lessonRecord.videoAsset.size));
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('Content-Disposition', `inline; filename="${lessonRecord.videoAsset.originalName}"`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bodyStream = object.Body as any;
+      bodyStream.pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+learnerRouter.get(
   '/segments/:segmentId/modules/:moduleId/lessons/:lessonId',
   requireSegmentAccess,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -277,7 +356,9 @@ learnerRouter.get(
           contentType: lesson.contentType,
           contentBody: lesson.contentBody,
           videoUrl: lesson.videoUrl,
+          videoAsset: lesson.videoAsset,
           slidesUrl: lesson.slidesUrl,
+          slidesAsset: lesson.slidesAsset,
           totalSlides: lesson.totalSlides,
         },
       });
@@ -349,8 +430,14 @@ learnerRouter.post(
   '/lessons/:lessonId/complete',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const lessonId = req.params.lessonId as string;
+      const lessonIdentifier = req.params.lessonId as string;
       const userId = req.user!.userId;
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
 
       // Check progress evidence — require at least 75% engagement
       const [progressRecord] = await db
@@ -359,7 +446,7 @@ learnerRouter.post(
         .where(
           and(
             eq(lessonProgress.userId, userId),
-            eq(lessonProgress.lessonId, lessonId)
+            eq(lessonProgress.lessonId, resolvedLesson.id)
           )
         )
         .limit(1);
@@ -373,7 +460,7 @@ learnerRouter.post(
         return;
       }
 
-      const result = await completionService.completeLesson(userId, lessonId);
+      const result = await completionService.completeLesson(userId, resolvedLesson.id);
 
       // Lesson not found
       if (result === null) {
@@ -398,7 +485,7 @@ learnerRouter.post(
             const [lessonRecord] = await db
               .select({ title: lessons.title, moduleId: lessons.moduleId })
               .from(lessons)
-              .where(eq(lessons.id, lessonId))
+              .where(eq(lessons.id, resolvedLesson.id))
               .limit(1);
 
             const lessonTitle = lessonRecord?.title ?? 'a lesson';
@@ -453,9 +540,15 @@ learnerRouter.post(
   '/lessons/:lessonId/progress',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const lessonId = req.params.lessonId as string;
+      const lessonIdentifier = req.params.lessonId as string;
       const userId = req.user!.userId;
       const { progress_percent } = reportProgressSchema.parse(req.body);
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
 
       // Upsert: insert or update only if new progress is higher
       // Atomic upsert: insert or update with max-wins (only store if new value is higher)
@@ -464,7 +557,7 @@ learnerRouter.post(
         .insert(lessonProgress)
         .values({
           userId,
-          lessonId,
+          lessonId: resolvedLesson.id,
           progressPercent: progress_percent,
         })
         .onConflictDoUpdate({
@@ -496,8 +589,14 @@ learnerRouter.get(
   '/lessons/:lessonId/progress',
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const lessonId = req.params.lessonId as string;
+      const lessonIdentifier = req.params.lessonId as string;
       const userId = req.user!.userId;
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
 
       const [record] = await db
         .select({ progressPercent: lessonProgress.progressPercent })
@@ -505,7 +604,7 @@ learnerRouter.get(
         .where(
           and(
             eq(lessonProgress.userId, userId),
-            eq(lessonProgress.lessonId, lessonId)
+            eq(lessonProgress.lessonId, resolvedLesson.id)
           )
         )
         .limit(1);
