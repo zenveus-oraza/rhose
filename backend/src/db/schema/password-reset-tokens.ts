@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, timestamp } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 
 /**
  * Password reset tokens table — stores hashed reset tokens

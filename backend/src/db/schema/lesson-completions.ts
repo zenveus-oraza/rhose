@@ -1,6 +1,6 @@
 import { pgTable, uuid, timestamp, unique } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { lessons } from './lessons';
+import { users } from './users.js';
+import { lessons } from './lessons.js';
 
 /**
  * Lesson Completions table — records when a user completes a lesson.

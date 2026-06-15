@@ -1,6 +1,6 @@
 import { pgTable, uuid, integer, timestamp, unique } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { segments } from './segments';
+import { users } from './users.js';
+import { segments } from './segments.js';
 
 /**
  * Segment Assignments table — tracks which users are assigned to which segments.

@@ -3,13 +3,13 @@
  * Export all Drizzle ORM table definitions from this directory.
  */
 
-export * from './users';
-export * from './password-reset-tokens';
-export * from './segments';
-export * from './modules';
-export * from './lessons';
-export * from './segment-assignments';
-export * from './lesson-completions';
-export * from './lesson-progress';
-export * from './activity-events';
-export * from './quizzes';
+export * from './users.js';
+export * from './password-reset-tokens.js';
+export * from './segments.js';
+export * from './modules.js';
+export * from './lessons.js';
+export * from './segment-assignments.js';
+export * from './lesson-completions.js';
+export * from './lesson-progress.js';
+export * from './activity-events.js';
+export * from './quizzes.js';

@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.js';
 
 /**
  * Activity Events table — stores user activity events for the admin dashboard.

@@ -1,6 +1,6 @@
 import { pgTable, uuid, integer, timestamp, unique } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { lessons } from './lessons';
+import { users } from './users.js';
+import { lessons } from './lessons.js';
 
 /**
  * Lesson Progress table — tracks user engagement evidence per lesson.

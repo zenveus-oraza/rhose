@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, integer, timestamp, boolean, pgEnum, unique } from 'drizzle-orm/pg-core';
-import { segments } from './segments';
-import { users } from './users';
+import { segments } from './segments.js';
+import { users } from './users.js';
 
 /**
  * Question type enum: single_select or multi_select.

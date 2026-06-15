@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, integer, timestamp } from 'drizzle-orm/pg-core';
-import { segments } from './segments';
+import { segments } from './segments.js';
 
 /**
  * Modules table — groups of Lessons within a Segment.

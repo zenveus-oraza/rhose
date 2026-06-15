@@ -1,5 +1,5 @@
 import { pgTable, uuid, varchar, text, integer, timestamp, pgEnum, jsonb } from 'drizzle-orm/pg-core';
-import { modules } from './modules';
+import { modules } from './modules.js';
 
 /**
  * Lesson content type enum: text, video, or slides.
