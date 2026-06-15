@@ -8,3 +8,8 @@ export * from './password-reset-tokens';
 export * from './segments';
 export * from './modules';
 export * from './lessons';
+export * from './segment-assignments';
+export * from './lesson-completions';
+export * from './lesson-progress';
+export * from './activity-events';
+export * from './quizzes';

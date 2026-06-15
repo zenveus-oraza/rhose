@@ -2,9 +2,12 @@ export type UserRole = 'admin' | 'learner';
 
 export interface User {
   id: string;
+  slug?: string;
   email: string;
   name: string;
   role: UserRole;
+  jobTitle?: string | null;
+  phone?: string | null;
   profileImage?: string | null;
   createdAt?: string;
 }

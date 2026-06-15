@@ -2,7 +2,20 @@
 
 ## Introduction
 
-Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, lesson views supporting text content and embedded video links, lesson completion confirmation flow, sequential lesson progression enforcement, and segment-based access control with duration handling. This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments). Offline access and downloadable lesson content are explicitly excluded.
+Milestone 3 delivers the structured learning experience for end users of the Rhose platform. This includes the learner dashboard displaying assigned segments, a My Learning page with full segment/module/lesson navigation, lesson views supporting text content, embedded/uploaded video, and uploaded slides (PPTX/PPT/PDF), progress evidence tracking with 75% engagement gating, lesson completion confirmation flow, module-level sequential progression enforcement (lessons within modules are free, modules are sequential), and segment-based access control with duration handling.
+
+This builds on M1 (authentication, data models, layout shell) and M2 (admin content management, user management, segment assignments).
+
+**Key Implementation Notes:**
+- Locking is module-level only: complete all lessons in Module N to unlock Module N+1
+- Lessons within a module are all freely accessible (no lesson-to-lesson locking)
+- Slides is a third content type alongside text and video — supports file upload (PPTX/PPT/PDF)
+- Video supports both URL links (YouTube/Vimeo) and file uploads (MP4/WebM/MOV up to 20MB)
+- Progress evidence must reach 75% before "Mark as Complete" is enabled
+- Progress is tracked via: video watch %, slides viewed %, text scroll %
+- Layout matches admin pattern: no desktop header, heading + divider + content
+
+Offline access and downloadable lesson content are explicitly excluded.
 
 ## Design References
 
@@ -15,7 +28,7 @@ Screenshots guide UI layout and component behavior. They do not add features out
 
 ## Glossary
 
-- **Learner_Dashboard**: The authenticated learner landing page displaying the user's assigned segments with progress indicators and access status.
+- **Learner_Dashboard**: The authenticated learner landing page displaying the user's assigned segments with progress indicators, access status, profile pictures with lazy loading, and pagination for large segment lists.
 - **Segment_Access_Service**: The backend service responsible for verifying a learner's assignment to a segment and enforcing access duration expiry.
 - **Progress_Service**: The backend service responsible for tracking and querying lesson completion state for a user.
 - **Lesson_View**: The frontend component that renders lesson content (text or embedded video) to the learner.
@@ -102,31 +115,72 @@ Screenshots guide UI layout and component behavior. They do not add features out
 
 ### Requirement 6: Lesson Completion Confirmation
 
-**User Story:** As a learner, I want to confirm that I have completed a lesson so that my progress is recorded and I can advance to the next lesson.
+**User Story:** As a learner, I want to confirm that I have completed a lesson so that my progress is recorded and I can advance to the next module.
 
 #### Acceptance Criteria
 
-1. WHEN an authenticated learner submits a completion confirmation for a lesson they have not previously completed, THE Completion_Service SHALL create a Lesson_Completion record with the user_id, lesson_id, and completed_at timestamp, and return a success response.
+1. WHEN an authenticated learner submits a completion confirmation for a lesson they have not previously completed AND their engagement progress is >= 75%, THE Completion_Service SHALL create a Lesson_Completion record with the user_id, lesson_id, and completed_at timestamp, and return a success response.
 2. WHEN an authenticated learner submits a completion confirmation for a lesson they have already completed, THE Completion_Service SHALL return a 200 OK response without creating a duplicate record (idempotent operation).
-3. WHEN an authenticated learner submits a completion confirmation for a lesson in a segment they do not have valid access to, THE Segment_Access_Service SHALL return a 403 Forbidden response.
-4. WHEN an authenticated learner submits a completion confirmation for a lesson that does not exist, THE Completion_Service SHALL return a 404 Not Found response.
-5. WHEN a lesson completion is recorded successfully, THE Completion_Service SHALL return the updated progress state including the next available lesson_id within the module (or null if the module is complete).
-6. FOR ALL lesson completion operations, completing a lesson then querying that lesson's status for the same user SHALL return "completed" (round-trip property).
-7. FOR ALL lesson completion operations, completing the same lesson multiple times SHALL produce the same single completion record (idempotence property).
+3. WHEN an authenticated learner submits a completion confirmation but their engagement progress is below 75%, THE Completion_Service SHALL return a 403 Forbidden response with error code "INSUFFICIENT_PROGRESS".
+4. WHEN an authenticated learner submits a completion confirmation for a lesson in a segment they do not have valid access to, THE Segment_Access_Service SHALL return a 403 Forbidden response.
+5. WHEN an authenticated learner submits a completion confirmation for a lesson that does not exist, THE Completion_Service SHALL return a 404 Not Found response.
+6. WHEN a lesson completion is recorded successfully, THE Completion_Service SHALL return the updated progress state including the next available lesson_id within the module (or null if the module is complete).
+7. FOR ALL lesson completion operations, completing a lesson then querying that lesson's status for the same user SHALL return "completed" (round-trip property).
+8. FOR ALL lesson completion operations, completing the same lesson multiple times SHALL produce the same single completion record (idempotence property).
 
-### Requirement 7: Sequential Lesson Progression
+### Requirement 6A: Progress Evidence Tracking
 
-**User Story:** As a platform operator, I want learners to complete lessons in order within a module so that the structured learning flow is maintained.
+**User Story:** As a platform operator, I want engagement evidence tracked before learners can mark lessons complete so that they actually consume the content.
 
 #### Acceptance Criteria
 
-1. WHEN an authenticated learner requests a lesson that is the first lesson (sort_order 1) in a module, THE Navigation_Service SHALL grant access regardless of other lesson completion states within that module.
-2. WHEN an authenticated learner requests a lesson with sort_order N (where N > 1), THE Navigation_Service SHALL grant access only if the lesson with sort_order N-1 in the same module has been completed by that learner.
-3. WHEN an authenticated learner requests a lesson whose prerequisite lesson has not been completed, THE Navigation_Service SHALL return a 403 Forbidden response with error code "LESSON_LOCKED" and include the id of the prerequisite lesson that must be completed first.
-4. WHEN an authenticated learner completes the last lesson in a module, THE Navigation_Service SHALL indicate that the next module's first lesson is now accessible (cross-module progression).
-5. WHEN an authenticated learner has completed all lessons in all modules of a segment, THE Navigation_Service SHALL indicate segment completion status.
-6. FOR ALL lessons within a module, a learner SHALL only access lesson at position N if all lessons at positions 1 through N-1 are completed (sequential invariant property).
+1. WHEN an authenticated learner engages with video content, THE frontend SHALL report the watch percentage to the backend via POST `/api/learner/lessons/:lessonId/progress`.
+2. WHEN an authenticated learner navigates through slides, THE frontend SHALL report (viewedSlides / totalSlides * 100) as progress percentage.
+3. WHEN an authenticated learner scrolls through text content, THE frontend SHALL report scroll percentage as progress.
+4. THE backend SHALL store progress using a max-wins strategy (only updates if new value > existing).
+5. THE backend SHALL use an atomic upsert (INSERT ON CONFLICT UPDATE with GREATEST) to prevent race conditions from rapid progress reports.
+6. WHEN progress reaches >= 75%, the GET progress endpoint SHALL return `canComplete: true`.
+7. THE "Mark as Complete" button SHALL be disabled in the UI until the backend confirms `canComplete: true`.
+
+### Requirement 6B: Lesson View - Slides Content
+
+**User Story:** As a learner, I want to view slides-based lessons so that I can learn from presentation content.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner with valid segment access requests a slides lesson, THE Lesson_View SHALL render the uploaded slides file.
+2. FOR PDF slides, THE Lesson_View SHALL render the file directly in an iframe.
+3. FOR PPTX/PPT slides, THE Lesson_View SHALL display a download button and slide navigation thumbnails.
+4. THE Lesson_View SHALL track which slides have been viewed and report progress as (viewed / total * 100).
+5. THE admin lesson creation form SHALL allow uploading PPTX, PPT, or PDF files (max 50MB).
+6. THE admin lesson creation form SHALL require a "Total Slides" count for slides lessons.
+
+### Requirement 6C: Video Upload Support
+
+**User Story:** As an admin, I want to either paste a video link or upload a video file so that I have flexibility in how I add video content.
+
+#### Acceptance Criteria
+
+1. THE admin lesson creation form SHALL provide a toggle between "Paste Link" and "Upload File" for video content.
+2. WHEN "Paste Link" is selected, THE form SHALL accept a URL (YouTube, Vimeo, or direct video link).
+3. WHEN "Upload File" is selected, THE form SHALL allow uploading video files (MP4, WebM, MOV, etc.) up to 20MB.
+4. THE backend SHALL store uploaded videos in `uploads/videos/` and return a relative URL path.
+5. THE learner video player SHALL handle both external URLs (YouTube/Vimeo via react-player) and uploaded file paths.
+
+### Requirement 7: Sequential Module Progression
+
+**User Story:** As a platform operator, I want learners to complete modules in order within a segment so that the structured learning flow is maintained, while allowing free exploration within each module.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner requests any lesson within the first module (sort_order 1) of a segment, THE Navigation_Service SHALL grant access regardless of lesson completion state.
+2. WHEN an authenticated learner requests a lesson within module N (where N > 1), THE Navigation_Service SHALL grant access only if ALL lessons in ALL preceding modules (1 through N-1) have been completed by that learner.
+3. WHEN an authenticated learner requests a lesson in a module that is locked, THE Navigation_Service SHALL return a 403 Forbidden response with error code "MODULE_LOCKED".
+4. WHEN an authenticated learner completes all lessons in a module, THE next module SHALL become accessible.
+5. WHEN a module has zero lessons (empty module), THE Navigation_Service SHALL treat it as complete and not block access to subsequent modules.
+6. WITHIN an accessible module, ALL lessons SHALL be accessible to the learner regardless of completion order (no lesson-level locking).
 7. THE Navigation_Service SHALL determine the learner's "current lesson" as the first incomplete lesson in sort_order within the first incomplete module in sort_order.
+8. WHEN an authenticated learner has completed all lessons in all modules of a segment, THE Navigation_Service SHALL indicate segment completion status.
 
 ### Requirement 8: Progress Tracking
 
@@ -174,6 +228,49 @@ Screenshots guide UI layout and component behavior. They do not add features out
 8. THE Database SHALL enforce that Lesson_Completion references a valid Lesson via foreign key constraint.
 9. FOR ALL Lesson_Completion records, the user_id and lesson_id pair SHALL be unique (uniqueness invariant).
 
+### Requirement 11: Learner Profile Display Enhancements
+
+**User Story:** As a learner, I want to see complete profile information including phone number and job title so that my profile accurately reflects my details.
+
+#### Acceptance Criteria
+
+1. WHEN an authenticated learner views their profile, THE ProfilePage SHALL display the learner's name, email, phone number, job title, and profile picture.
+2. THE ProfilePage SHALL display the profile picture with lazy loading (`loading="lazy"` attribute) to improve page load performance.
+3. WHEN the learner's phone or job title fields are present, THE ProfilePage SHALL display them in a formatted, readable layout.
+4. THE ProfilePage SHALL allow learners to edit their phone number and job title in addition to existing fields.
+5. THE ProfilePage edit form SHALL validate phone number format (maximum 20 characters) and job title (maximum 255 characters).
+6. WHEN a learner updates their profile, THE Profile_Service SHALL persist phone and job title changes to the database.
+
+### Requirement 12: Pagination and Search for User Lists
+
+**User Story:** As a learner or admin, I want user lists and segment lists to support pagination and search so that I can efficiently navigate large datasets.
+
+#### Acceptance Criteria
+
+1. WHEN a user navigates to any page displaying a list of users, modules, lessons, or assignments, THE Frontend SHALL display paginated results with configurable items per page (default 20).
+2. THE Frontend SHALL display pagination controls including "Previous" and "Next" buttons, with buttons disabled at boundaries.
+3. THE Frontend SHALL display pagination metadata showing "Page X of Y (Total Z items)" to inform the user of their position within the dataset.
+4. WHEN a search or filter is applied, THE Frontend SHALL automatically reset the current page to 1.
+5. THE Backend SHALL support pagination query parameters: `page`, `limit`, `search`, and filter-specific parameters (e.g., `status` for segments).
+6. WHEN a learner or admin performs a search in a dropdown or list, THE Frontend SHALL make server-side API calls with the search query.
+7. FOR ALL paginated list endpoints, changing the page number SHALL request only the results for that page, reducing data transfer and improving performance.
+8. THE Backend SHALL return paginated results with total count and page count metadata to enable frontend pagination UI.
+
+### Requirement 13: Searchable Dropdowns for Large Lists
+
+**User Story:** As an admin, I want searchable dropdowns for selecting segments and users when assigning training so that I can efficiently handle 100+ items without scrolling through entire lists.
+
+#### Acceptance Criteria
+
+1. WHEN an admin uses the AssignTrainingPage segment selector, THE Frontend SHALL display a SearchableDropdown component instead of a plain `<select>` element.
+2. THE SearchableDropdown SHALL support text search filtering both locally and server-side to handle large datasets.
+3. WHEN an admin types in the SearchableDropdown search input, THE Frontend SHALL filter or request matching items in real-time.
+4. THE SearchableDropdown SHALL display "No items found" when the search returns no results.
+5. THE SearchableDropdown SHALL support keyboard navigation (Arrow keys, Enter, Escape).
+6. THE SearchableDropdown SHALL maintain proper focus management and accessibility attributes (ARIA labels).
+7. WHEN an admin selects an item from the SearchableDropdown, THE dropdown SHALL close and display the selected value.
+8. THE Frontend SHALL not hard-code item limits (e.g., 100) for user or segment lists; instead, all limits SHALL be managed via pagination.
+
 ## Scope Guardrails
 
 - This milestone covers learner dashboard, segment access control with duration, lesson viewing (text and video), lesson completion confirmation, sequential progression, and progress tracking only.
@@ -183,3 +280,16 @@ Screenshots guide UI layout and component behavior. They do not add features out
 - Downloadable lesson content is excluded from the MVP.
 - Admin management of access_duration_days on assignments is an M2 admin concern (the admin sets duration when assigning); M3 only enforces the duration on the learner side.
 - SSO, MFA, analytics, certificates, and CRM integrations are out of scope for the MVP.
+
+## Cross-Cutting Concerns & Governance
+
+**IMPORTANT**: This milestone implements in alignment with `.kiro/steering/governance-and-cross-cutting-concerns.md`, which establishes:
+
+- **Database Schema Governance** (Section 1): All schema changes must cascade through the stack (DB → Types → API → Frontend UI)
+- **User Profile Extensions** (Section 2): Phone, job title, and profile picture fields are handled consistently across all pages
+- **Pagination & Search** (Section 3): All lists with 20+ items must have pagination; search/filter resets page to 1
+- **Profile Picture Display** (Section 6): All profile pictures must use lazy loading (`loading="lazy"` attribute)
+- **Role vs. Job Title Distinction** (Section 7): Clear visual hierarchy with role primary, job title secondary
+- **Admin Editing Capabilities** (Section 5): Admins can edit comprehensive user profile fields
+
+Refer to the governance document for implementation details and patterns.

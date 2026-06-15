@@ -16,3 +16,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Uploaded files (keep directory structure, ignore content)
+uploads/*
+!uploads/.gitkeep

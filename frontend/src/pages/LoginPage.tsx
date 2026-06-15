@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { Button } from '@/components/ui/Button';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useToast } from '@/components/ui/Toast';
 
 function LoginLeftExtra() {
@@ -124,9 +125,8 @@ export function LoginPage() {
             >
               Password
             </label>
-            <input
+            <PasswordInput
               id="login-password"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => {

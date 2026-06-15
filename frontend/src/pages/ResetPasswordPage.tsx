@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AuthLayout } from '@/components/layout/AuthLayout';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { resetPassword } from '@/services/auth.service';
 
 type PasswordStrength = 'weak' | 'medium' | 'strong';
@@ -131,7 +132,7 @@ export function ResetPasswordPage() {
           </div>
           <Link
             to="/login"
-            className="inline-block rounded-md bg-primary px-6 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition"
+            className="inline-block rounded-md bg-secondary px-6 py-2.5 text-body font-medium text-white hover:bg-secondary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition"
           >
             Back to login
           </Link>
@@ -173,9 +174,8 @@ export function ResetPasswordPage() {
             >
               New password
             </label>
-            <input
+            <PasswordInput
               id="reset-new-password"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => {
@@ -234,9 +234,8 @@ export function ResetPasswordPage() {
             >
               Confirm password
             </label>
-            <input
+            <PasswordInput
               id="reset-confirm-password"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => {
@@ -275,7 +274,7 @@ export function ResetPasswordPage() {
           <button
             type="submit"
             disabled={isLoading || !token}
-            className="w-full rounded-md bg-primary px-4 py-2.5 text-body font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            className="w-full rounded-md bg-secondary px-4 py-2.5 text-body font-medium text-white hover:bg-secondary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">

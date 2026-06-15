@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 
 /**
- * Nodemailer transporter configured with SMTP credentials from environment.
+ * Nodemailer transporter configured for Amazon SES SMTP credentials.
  */
 const transporter = nodemailer.createTransport({
   host: env.EMAIL_HOST,

@@ -3,11 +3,12 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema/users.js';
-import { userCreationSchema } from '../schemas/user.schemas.js';
-import { hashPassword } from '../utils/password.js';
+import { userCreationSchema, profileUpdateSchema, passwordChangeSchema } from '../schemas/user.schemas.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
 import { sendSuccess } from '../utils/response.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { AppError } from '../utils/AppError.js';
+import { generateUniqueUserSlug } from '../services/user-management.service.js';
 
 const router = Router();
 
@@ -27,8 +28,11 @@ router.get(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
+          jobTitle: users.jobTitle,
+          phone: users.phone,
           profileImage: users.profileImage,
           createdAt: users.createdAt,
         })
@@ -57,7 +61,7 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = (req as any).user.userId;
-      const { name, email, profileImage } = req.body;
+      const { name, email, profileImage, jobTitle, phone } = profileUpdateSchema.parse(req.body);
 
       // Check email uniqueness if email is being changed
       if (email) {
@@ -76,6 +80,8 @@ router.patch(
       if (name !== undefined) updateData.name = name;
       if (email !== undefined) updateData.email = email;
       if (profileImage !== undefined) updateData.profileImage = profileImage;
+      if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+      if (phone !== undefined) updateData.phone = phone;
 
       const [updated] = await db
         .update(users)
@@ -85,13 +91,63 @@ router.patch(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
+          jobTitle: users.jobTitle,
+          phone: users.phone,
           profileImage: users.profileImage,
           createdAt: users.createdAt,
         });
 
       sendSuccess(res, updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/users/change-password
+ * Changes the authenticated user's password after verifying the current password.
+ */
+router.post(
+  '/change-password',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req as any).user.userId;
+      const { currentPassword, newPassword } = passwordChangeSchema.parse(req.body);
+
+      const [user] = await db
+        .select({
+          id: users.id,
+          passwordHash: users.passwordHash,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        throw AppError.notFound('User not found');
+      }
+
+      const passwordValid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!passwordValid) {
+        throw AppError.unauthorized('Current password is incorrect');
+      }
+
+      const nextPasswordHash = await hashPassword(newPassword);
+
+      await db
+        .update(users)
+        .set({
+          passwordHash: nextPasswordHash,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+
+      sendSuccess(res, { message: 'Password changed successfully' });
     } catch (error) {
       next(error);
     }
@@ -126,6 +182,7 @@ router.post(
 
       // 3. Generate a temporary password
       const temporaryPassword = crypto.randomBytes(8).toString('hex');
+      const slug = await generateUniqueUserSlug(name);
 
       // 4. Hash the temporary password with bcrypt
       const passwordHash = await hashPassword(temporaryPassword);
@@ -135,6 +192,7 @@ router.post(
         .insert(users)
         .values({
           name,
+          slug,
           email,
           passwordHash,
           role,
@@ -144,6 +202,7 @@ router.post(
           id: users.id,
           email: users.email,
           name: users.name,
+          slug: users.slug,
           role: users.role,
           status: users.status,
         });
@@ -153,6 +212,7 @@ router.post(
         id: createdUser.id,
         email: createdUser.email,
         name: createdUser.name,
+        slug: createdUser.slug,
         role: createdUser.role,
         status: createdUser.status,
         temporaryPassword,

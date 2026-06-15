@@ -4,6 +4,16 @@
 
 This implementation plan covers the automated email notification system for the Rhose learning platform MVP. It includes the email_logs data model, template engine for client-provided templates, Nodemailer transport with retry logic, cron-based scheduling for weekly and monthly emails, deduplication safeguards, comprehensive QA testing across all milestones (M1–M5), and production deployment readiness. The implementation uses TypeScript, Express, PostgreSQL with Drizzle ORM, and Nodemailer.
 
+### Already Present From Earlier Milestones
+
+The following M5 foundations are already present in the merged branch and should be treated as baseline:
+
+- Nodemailer wired to Amazon SES SMTP for transactional email
+- S3-backed file upload infrastructure
+- PM2 ecosystem configuration for EC2 process management
+- deployment documentation in `DEPLOYMENT.md`
+- production-oriented environment variable documentation in `backend/.env.example`
+
 ## Tasks
 
 - [ ] 1. Set up data model and email module structure

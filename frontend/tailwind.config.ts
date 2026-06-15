@@ -20,7 +20,7 @@ const config: Config = {
       },
       colors: {
         primary: '#75D8D5',
-        secondary: '#75D8D5',
+        secondary: '#0F172A',
         active: '#0F172A',
         navy: {
           DEFAULT: '#1B2559',
@@ -86,6 +86,19 @@ const config: Config = {
           700: '#B45309',
           800: '#92400E',
           900: '#78350F',
+        },
+        coral: {
+          DEFAULT: '#F56565',
+          50: '#FFF5F5',
+          100: '#FED7D7',
+          200: '#FEB2B2',
+          300: '#FC8181',
+          400: '#F56565',
+          500: '#E53E3E',
+          600: '#C53030',
+          700: '#9B2C2C',
+          800: '#822727',
+          900: '#63171B',
         },
         muted: {
           DEFAULT: '#718096',

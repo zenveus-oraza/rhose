@@ -58,6 +58,7 @@ router.post(
           id: user.id,
           email: user.email,
           name: user.name,
+          slug: user.slug,
           role: user.role,
         },
       });

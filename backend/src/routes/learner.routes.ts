@@ -1,0 +1,622 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { eq, desc, ilike, and, count, sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { db } from '../db/index.js';
+import { segmentAssignments, segments, lessonProgress, lessonCompletions } from '../db/schema/index.js';
+import { lessons } from '../db/schema/lessons.js';
+import { modules } from '../db/schema/modules.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireLearner, requireSegmentAccess } from '../middleware/segment-access.js';
+import { progressService } from '../services/progress.service.js';
+import { navigationService } from '../services/navigation.service.js';
+import { completionService } from '../services/completion.service.js';
+import type { CompletionResult } from '../services/completion.service.js';
+import { activityService } from '../services/activity.service.js';
+import { segmentAccessService } from '../services/segment-access.service.js';
+import { storageService } from '../services/storage.service.js';
+import { reportProgressSchema } from '../schemas/lesson.schemas.js';
+import { sendSuccess, sendError } from '../utils/response.js';
+import quizLearnerRouter from './quiz-learner.routes.js';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface LearnerSegment {
+  segmentId: string;
+  title: string;
+  description: string | null;
+  progress_percentage: number;
+  completed_lessons: number;
+  total_lessons: number;
+  access_status: 'active' | 'expired';
+  assigned_at: string;
+}
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+const paginationSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  search: z.string().optional(),
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Determine whether access is still active based on assignment date and duration.
+ * If accessDurationDays is null, access is unlimited (always active).
+ */
+function computeAccessStatus(assignedAt: Date, accessDurationDays: number | null): 'active' | 'expired' {
+  if (accessDurationDays === null) {
+    return 'active';
+  }
+
+  const expiryDate = new Date(assignedAt);
+  expiryDate.setUTCDate(expiryDate.getUTCDate() + accessDurationDays);
+
+  return new Date() > expiryDate ? 'expired' : 'active';
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
+const learnerRouter = Router();
+
+// Apply auth middleware to all learner routes
+learnerRouter.use(authenticate, requireLearner);
+
+// Mount quiz sub-router with segment access enforcement
+learnerRouter.use('/segments/:segmentId/quiz', requireSegmentAccess, quizLearnerRouter);
+
+/**
+ * GET /api/learner/segments
+ * Returns assigned segments with progress and access status for the authenticated learner.
+ * Supports pagination (page, limit) and search by segment title.
+ * Ordered by assigned_at descending (most recent first).
+ * Returns empty array when no assignments exist.
+ */
+learnerRouter.get(
+  '/segments',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+
+      // Validate and parse query params
+      const params = paginationSchema.parse(req.query);
+      const { page, limit, search } = params;
+      const offset = (page - 1) * limit;
+
+      // Build WHERE conditions
+      const conditions = [eq(segmentAssignments.userId, userId)];
+      if (search) {
+        conditions.push(ilike(segments.title, `%${search}%`));
+      }
+
+      // Count total matching assignments for pagination metadata
+      const [{ total: totalCount }] = await db
+        .select({ total: count() })
+        .from(segmentAssignments)
+        .innerJoin(segments, eq(segmentAssignments.segmentId, segments.id))
+        .where(and(...conditions));
+
+      const total = Number(totalCount);
+      const totalPages = Math.ceil(total / limit);
+
+      // Return empty result if no assignments
+      if (total === 0) {
+        sendSuccess(res, {
+          segments: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+        });
+        return;
+      }
+
+      // Fetch paginated assignments joined with segment data
+      const assignments = await db
+        .select({
+          segmentInternalId: segmentAssignments.segmentId,
+          segmentId: segments.slug,
+          accessDurationDays: segmentAssignments.accessDurationDays,
+          assignedAt: segmentAssignments.assignedAt,
+          title: segments.title,
+          description: segments.description,
+        })
+        .from(segmentAssignments)
+        .innerJoin(segments, eq(segmentAssignments.segmentId, segments.id))
+        .where(and(...conditions))
+        .orderBy(desc(segmentAssignments.assignedAt))
+        .limit(limit)
+        .offset(offset);
+
+      // Build response with progress for each assignment
+      const learnerSegments: LearnerSegment[] = await Promise.all(
+        assignments.map(async (assignment) => {
+          const progress = await progressService.getSegmentProgress(assignment.segmentInternalId, userId);
+          const accessStatus = computeAccessStatus(assignment.assignedAt, assignment.accessDurationDays);
+
+          return {
+            segmentId: assignment.segmentId,
+            title: assignment.title,
+            description: assignment.description,
+            progress_percentage: progress.percentage,
+            completed_lessons: progress.completedLessons,
+            total_lessons: progress.totalLessons,
+            access_status: accessStatus,
+            assigned_at: assignment.assignedAt.toISOString(),
+          };
+        })
+      );
+
+      sendSuccess(res, {
+        segments: learnerSegments,
+        pagination: { page, limit, total, totalPages },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/segments/:segmentId
+ * Get segment details with modules and per-user progress.
+ * Returns segment title, description, status, and ordered modules with lesson count and completed count.
+ * Requires authenticated learner with valid segment access.
+ */
+learnerRouter.get(
+  '/segments/:segmentId',
+  requireSegmentAccess,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const segmentId = req.params.segmentId as string;
+      const userId = req.user!.userId;
+
+      const segment = await navigationService.getSegmentDetail(segmentId, userId);
+
+      if (!segment) {
+        sendError(res, 404, 'NOT_FOUND', 'Segment not found');
+        return;
+      }
+
+      sendSuccess(res, { segment });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/segments/:segmentId/current-lesson
+ * Returns the current lesson for the authenticated user within the segment.
+ * If all lessons are complete, returns segmentComplete: true with currentLesson: null.
+ * Requires authenticated learner with valid segment access (includes duration check).
+ */
+learnerRouter.get(
+  '/segments/:segmentId/current-lesson',
+  requireSegmentAccess,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const segmentId = req.params.segmentId as string;
+      const userId = req.user!.userId;
+
+      const currentLesson = await navigationService.getCurrentLesson(segmentId, userId);
+
+      if (!currentLesson) {
+        sendSuccess(res, { currentLesson: null, segmentComplete: true });
+        return;
+      }
+
+      sendSuccess(res, {
+       currentLesson: { moduleId: currentLesson.moduleId, lessonId: currentLesson.lessonId },
+        segmentComplete: false,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/segments/:segmentId/modules/:moduleId/lessons
+ * Returns ordered lessons with completion status for the requesting user.
+ * Requires authenticated learner with valid segment access.
+ */
+learnerRouter.get(
+  '/segments/:segmentId/modules/:moduleId/lessons',
+  requireSegmentAccess,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const moduleId = req.params.moduleId as string;
+      const userId = req.user!.userId;
+
+      const lessons = await navigationService.getModuleLessons(moduleId, userId);
+
+      sendSuccess(res, { lessons });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/segments/:segmentId/modules/:moduleId/lessons/:lessonId
+ * Get lesson content (text, video, or slides) for a specific lesson.
+ * Enforces segment access and module-level sequential access.
+ * Lessons within a module are all accessible, but the module itself must be unlocked
+ * (all lessons in preceding modules must be completed).
+ * Returns 403 if the module is locked. Returns 404 if the lesson does not exist.
+ */
+learnerRouter.get(
+  '/lessons/:lessonId/video',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonIdentifier = req.params.lessonId as string;
+      const userId = req.user!.userId;
+
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      const [lessonRecord] = await db
+        .select({
+          lessonId: lessons.id,
+          moduleId: lessons.moduleId,
+          videoUrl: lessons.videoUrl,
+          videoAsset: lessons.videoAsset,
+        })
+        .from(lessons)
+        .where(eq(lessons.id, resolvedLesson.id))
+        .limit(1);
+
+      if (!lessonRecord?.videoAsset?.key || !lessonRecord.videoUrl) {
+        sendError(res, 404, 'NOT_FOUND', 'Video not found');
+        return;
+      }
+
+      const [moduleRecord] = await db
+        .select({
+          segmentId: modules.segmentId,
+          moduleId: modules.id,
+          moduleSlug: modules.slug,
+        })
+        .from(modules)
+        .where(eq(modules.id, lessonRecord.moduleId))
+        .limit(1);
+
+      if (!moduleRecord) {
+        sendError(res, 404, 'NOT_FOUND', 'Module not found');
+        return;
+      }
+
+      const access = await segmentAccessService.verifyAccess(userId, moduleRecord.segmentId);
+      if (!access.granted) {
+        sendError(res, 403, access.code, access.code);
+        return;
+      }
+
+      const segmentDetail = await navigationService.getSegmentDetail(moduleRecord.segmentId, userId);
+      const targetModule = segmentDetail?.modules.find((module) => module.id === moduleRecord.moduleSlug);
+      if (targetModule && !targetModule.accessible) {
+        sendError(res, 403, 'MODULE_LOCKED', 'Complete the previous module to access this one.');
+        return;
+      }
+
+      const object = await storageService.getFile(lessonRecord.videoAsset.key);
+      if (!object.Body) {
+        sendError(res, 404, 'NOT_FOUND', 'Video not found');
+        return;
+      }
+
+      res.setHeader('Content-Type', lessonRecord.videoAsset.mimeType || 'video/mp4');
+      res.setHeader('Content-Length', String(lessonRecord.videoAsset.size));
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('Content-Disposition', `inline; filename="${lessonRecord.videoAsset.originalName}"`);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bodyStream = object.Body as any;
+      bodyStream.pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+learnerRouter.get(
+  '/segments/:segmentId/modules/:moduleId/lessons/:lessonId',
+  requireSegmentAccess,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const segmentId = req.params.segmentId as string;
+      const moduleId = req.params.moduleId as string;
+      const lessonId = req.params.lessonId as string;
+      const userId = req.user!.userId;
+
+      // Check module-level access: is this module unlocked?
+      const segmentDetail = await navigationService.getSegmentDetail(segmentId, userId);
+      if (segmentDetail) {
+        const targetModule = segmentDetail.modules.find((m) => m.id === moduleId);
+        if (targetModule && !targetModule.accessible) {
+          sendError(res, 403, 'MODULE_LOCKED', 'Complete the previous module to access this one.');
+          return;
+        }
+      }
+
+      // Fetch lesson content
+      const lesson = await navigationService.getLessonContent(lessonId);
+
+      if (!lesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      sendSuccess(res, {
+        lesson: {
+          id: lesson.id,
+          title: lesson.title,
+          contentType: lesson.contentType,
+          contentBody: lesson.contentBody,
+          videoUrl: lesson.videoUrl,
+          videoAsset: lesson.videoAsset,
+          slidesUrl: lesson.slidesUrl,
+          slidesAsset: lesson.slidesAsset,
+          totalSlides: lesson.totalSlides,
+        },
+      });
+
+      // Fire-and-forget: track lesson_resumed if learner has prior progress but hasn't completed
+      (async () => {
+        try {
+          // Check if lesson already completed
+          const [completion] = await db
+            .select({ lessonId: lessonCompletions.lessonId })
+            .from(lessonCompletions)
+            .where(and(eq(lessonCompletions.userId, userId), eq(lessonCompletions.lessonId, lessonId)))
+            .limit(1);
+
+          if (completion) return; // Already completed — not a "resume"
+
+          // Check if there's existing progress > 0
+          const [progress] = await db
+            .select({ progressPercent: lessonProgress.progressPercent })
+            .from(lessonProgress)
+            .where(and(eq(lessonProgress.userId, userId), eq(lessonProgress.lessonId, lessonId)))
+            .limit(1);
+
+          if (progress && progress.progressPercent > 0) {
+            // Get module info for the detail line
+            const [lessonRecord] = await db
+              .select({ title: lessons.title, moduleId: lessons.moduleId })
+              .from(lessons)
+              .where(eq(lessons.id, lessonId))
+              .limit(1);
+
+            let detail = lessonRecord?.title ?? '';
+            if (lessonRecord?.moduleId) {
+              const [mod] = await db
+                .select({ title: modules.title, sortOrder: modules.sortOrder })
+                .from(modules)
+                .where(eq(modules.id, lessonRecord.moduleId))
+                .limit(1);
+              if (mod) {
+                detail = `Module ${mod.sortOrder + 1} • ${lesson.contentType} (${progress.progressPercent}%)`;
+              }
+            }
+
+            await activityService.trackEvent({
+              userId,
+              action: 'lesson_resumed',
+              description: `Resumed Lesson: ${lesson.title}`,
+              detail,
+            });
+          }
+        } catch {
+          // Activity tracking failures must not affect the main flow
+        }
+      })();
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/learner/lessons/:lessonId/complete
+ * Mark a lesson as completed for the authenticated learner.
+ * Requires at least 75% progress evidence to be recorded before completion.
+ * Segment access is enforced internally by the completion service.
+ * Returns completion result with next lesson info and progress flags.
+ */
+learnerRouter.post(
+  '/lessons/:lessonId/complete',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonIdentifier = req.params.lessonId as string;
+      const userId = req.user!.userId;
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      // Check progress evidence — require at least 75% engagement
+      const [progressRecord] = await db
+        .select({ progressPercent: lessonProgress.progressPercent })
+        .from(lessonProgress)
+        .where(
+          and(
+            eq(lessonProgress.userId, userId),
+            eq(lessonProgress.lessonId, resolvedLesson.id)
+          )
+        )
+        .limit(1);
+
+      const currentProgress = progressRecord?.progressPercent ?? 0;
+      if (currentProgress < 75) {
+        sendError(res, 403, 'INSUFFICIENT_PROGRESS', 
+          `You must engage with at least 75% of the content before marking as complete. Current progress: ${currentProgress}%`,
+          { currentProgress, requiredProgress: 75 }
+        );
+        return;
+      }
+
+      const result = await completionService.completeLesson(userId, resolvedLesson.id);
+
+      // Lesson not found
+      if (result === null) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      // Segment access denied
+      if ('granted' in result && result.granted === false) {
+        sendError(res, 403, result.code, result.code);
+        return;
+      }
+
+      // Success — return completion data
+      const completionResult = result as CompletionResult;
+
+      // Fire-and-forget: track lesson_completed activity event
+      if (!completionResult.alreadyCompleted) {
+        (async () => {
+          try {
+            // Fetch lesson title for the activity description
+            const [lessonRecord] = await db
+              .select({ title: lessons.title, moduleId: lessons.moduleId })
+              .from(lessons)
+              .where(eq(lessons.id, resolvedLesson.id))
+              .limit(1);
+
+            const lessonTitle = lessonRecord?.title ?? 'a lesson';
+            await activityService.trackEvent({
+              userId,
+              action: 'lesson_completed',
+              description: `Completed "${lessonTitle}"`,
+              detail: lessonTitle,
+            });
+
+            // Track module_completed if this lesson completion finished the module
+            if (completionResult.moduleComplete && lessonRecord?.moduleId) {
+              const [mod] = await db
+                .select({ title: modules.title })
+                .from(modules)
+                .where(eq(modules.id, lessonRecord.moduleId))
+                .limit(1);
+
+              const moduleTitle = mod?.title ?? 'a module';
+              await activityService.trackEvent({
+                userId,
+                action: 'module_completed',
+                description: `Completed Module "${moduleTitle}"`,
+                detail: moduleTitle,
+              });
+            }
+          } catch {
+            // Activity tracking failures must not affect the main flow
+          }
+        })();
+      }
+
+      sendSuccess(res, {
+        alreadyCompleted: completionResult.alreadyCompleted,
+        nextLessonId: completionResult.nextLessonId,
+        moduleComplete: completionResult.moduleComplete,
+        segmentComplete: completionResult.segmentComplete,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/learner/lessons/:lessonId/progress
+ * Report progress evidence for a lesson (e.g., video watch %, slides viewed %, scroll %).
+ * Only updates if the new progress is higher than the existing record (max-wins).
+ * Returns the current progress percentage.
+ */
+learnerRouter.post(
+  '/lessons/:lessonId/progress',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonIdentifier = req.params.lessonId as string;
+      const userId = req.user!.userId;
+      const { progress_percent } = reportProgressSchema.parse(req.body);
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      // Upsert: insert or update only if new progress is higher
+      // Atomic upsert: insert or update with max-wins (only store if new value is higher)
+      // This avoids race conditions from rapid progress reports
+      const [result] = await db
+        .insert(lessonProgress)
+        .values({
+          userId,
+          lessonId: resolvedLesson.id,
+          progressPercent: progress_percent,
+        })
+        .onConflictDoUpdate({
+          target: [lessonProgress.userId, lessonProgress.lessonId],
+          set: {
+            progressPercent: sql`GREATEST(${lessonProgress.progressPercent}, ${progress_percent})`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({ progressPercent: lessonProgress.progressPercent });
+
+      const finalProgress = result?.progressPercent ?? progress_percent;
+
+      sendSuccess(res, {
+        progressPercent: finalProgress,
+        canComplete: finalProgress >= 75,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/learner/lessons/:lessonId/progress
+ * Get current progress evidence for a lesson.
+ */
+learnerRouter.get(
+  '/lessons/:lessonId/progress',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonIdentifier = req.params.lessonId as string;
+      const userId = req.user!.userId;
+      const resolvedLesson = await navigationService.resolveLessonIdentifier(lessonIdentifier);
+
+      if (!resolvedLesson) {
+        sendError(res, 404, 'NOT_FOUND', 'Lesson not found');
+        return;
+      }
+
+      const [record] = await db
+        .select({ progressPercent: lessonProgress.progressPercent })
+        .from(lessonProgress)
+        .where(
+          and(
+            eq(lessonProgress.userId, userId),
+            eq(lessonProgress.lessonId, resolvedLesson.id)
+          )
+        )
+        .limit(1);
+
+      sendSuccess(res, {
+        progressPercent: record?.progressPercent ?? 0,
+        canComplete: (record?.progressPercent ?? 0) >= 75,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+export default learnerRouter;
