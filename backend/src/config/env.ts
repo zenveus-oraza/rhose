@@ -75,7 +75,7 @@ const envSchema = z.object({
 
   S3_KEY_PREFIX: z
     .string()
-    .default('rhose'),
+    .default('cmc-oral'),
 
   // Frontend / CORS
   FRONTEND_URL: z
