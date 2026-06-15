@@ -99,13 +99,6 @@
       "when": 1781265600000,
       "tag": "0013_lesson_upload_asset_metadata",
       "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1781282897740,
-      "tag": "0014_gifted_talisman",
-      "breakpoints": true
     }
   ]
 }
